@@ -52,55 +52,21 @@
              <number>18</number>
             </property>
             <item>
-             <widget class="QFrame" name="fullScreenResolutionFrame">
-              <property name="toolTip">
-               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;All the resolutions that your video card/monitor supports should be displayed.&lt;/p&gt;&lt;p&gt;[Recommended:&lt;span style=&quot; font-style:italic;&quot;&gt; Maximum resolution for your monitor unless performance becomes an issue&lt;/span&gt;]&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-              </property>
-              <layout class="QVBoxLayout" name="verticalLayout_23">
-               <property name="spacing">
-                <number>5</number>
+            <layout class="QHBoxLayout" name="horizontalLayout_25">
+             <item>
+              <widget class="QLabel" name="fullScreenLabel">
+               <property name="text">
+                <string>Full Screen:</string>
                </property>
-               <property name="leftMargin">
-                <number>0</number>
+               <property name="wordWrap">
+                <bool>true</bool>
                </property>
-               <property name="topMargin">
-                <number>0</number>
-               </property>
-               <property name="rightMargin">
-                <number>0</number>
-               </property>
-               <property name="bottomMargin">
-                <number>0</number>
-               </property>
-               <item>
-                <widget class="QLabel" name="fullScreenResolutionLabel">
-                 <property name="text">
-                  <string>Full screen resolution:</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QComboBox" name="fullScreenResolutionComboBox"/>
-               </item>
-               <item>
-                <layout class="QHBoxLayout" name="horizontalLayout_25">
-                 <item>
-                  <widget class="QLabel" name="fullScreenRefreshRateLabel">
-                   <property name="text">
-                    <string>Refresh rate:</string>
-                   </property>
-                   <property name="wordWrap">
-                    <bool>true</bool>
-                   </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QComboBox" name="fullScreenRefreshRateComboBox"/>
-                 </item>
-                </layout>
-               </item>
-              </layout>
-             </widget>
+              </widget>
+             </item>
+             <item>
+              <widget class="QCheckBox" name="fullScreenCheckBox"/>
+             </item>
+            </layout>
             </item>
             <item>
              <widget class="QFrame" name="windowedResolutionFrame">

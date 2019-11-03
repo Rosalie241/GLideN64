@@ -56,7 +56,5 @@ extern const unsigned int* rdram_size;
 extern void(*renderCallback)(int);
 
 extern m64p_handle g_configVideoGeneral;
-extern m64p_handle g_configVideoGliden64;
-bool Config_SetDefault();
 
 #endif // GLIDEN64_MUPENPLUS_H

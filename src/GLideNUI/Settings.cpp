@@ -21,11 +21,9 @@ void _loadSettings(QSettings & settings)
 	config.version = settings.value("version").toInt();
 
 	settings.beginGroup("video");
-	config.video.fullscreenWidth = settings.value("fullscreenWidth", config.video.fullscreenWidth).toInt();
-	config.video.fullscreenHeight = settings.value("fullscreenHeight", config.video.fullscreenHeight).toInt();
 	config.video.windowedWidth = settings.value("windowedWidth", config.video.windowedWidth).toInt();
 	config.video.windowedHeight = settings.value("windowedHeight", config.video.windowedHeight).toInt();
-	config.video.fullscreenRefresh = settings.value("fullscreenRefresh", config.video.fullscreenRefresh).toInt();
+	config.video.fullscreen = settings.value("fullscreen", config.video.fullscreen).toInt();
 	config.video.multisampling = settings.value("multisampling", config.video.multisampling).toInt();
 	config.video.fxaa= settings.value("fxaa", config.video.fxaa).toInt();
 	config.video.verticalSync = settings.value("verticalSync", config.video.verticalSync).toInt();
@@ -193,11 +191,9 @@ void writeSettings(const QString & _strIniFolder)
 	settings.setValue("version", config.version);
 
 	settings.beginGroup("video");
-	settings.setValue("fullscreenWidth", config.video.fullscreenWidth);
-	settings.setValue("fullscreenHeight", config.video.fullscreenHeight);
 	settings.setValue("windowedWidth", config.video.windowedWidth);
 	settings.setValue("windowedHeight", config.video.windowedHeight);
-	settings.setValue("fullscreenRefresh", config.video.fullscreenRefresh);
+	settings.setValue("fullscreen", config.video.fullscreen);
 	settings.setValue("multisampling", config.video.multisampling);
 	settings.setValue("fxaa", config.video.fxaa);
 	settings.setValue("verticalSync", config.video.verticalSync);
@@ -384,11 +380,9 @@ void saveCustomRomSettings(const QString & _strIniFolder, const char * _strRomNa
 	settings.beginGroup(romName);
 
 	settings.beginGroup("video");
-	WriteCustomSetting(video, fullscreenWidth);
-	WriteCustomSetting(video, fullscreenHeight);
 	WriteCustomSetting(video, windowedWidth);
 	WriteCustomSetting(video, windowedHeight);
-	WriteCustomSetting(video, fullscreenRefresh);
+	WriteCustomSetting(video, fullscreen);
 	WriteCustomSetting(video, multisampling);
 	WriteCustomSetting(video, fxaa);
 	WriteCustomSetting(video, verticalSync);

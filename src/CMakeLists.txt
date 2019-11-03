@@ -145,7 +145,7 @@ if(MUPENPLUSAPI)
   include_directories( . inc )
   set(GLideN64_SOURCES_UNIX
 	MupenPlusPluginAPI.cpp
-	mupenplus/Config_mupenplus.cpp
+	windows/Config_windows.cpp
 	mupenplus/CommonAPIImpl_mupenplus.cpp
 	mupenplus/MemoryStatus_mupenplus.cpp
 	mupenplus/MupenPlusAPIImpl.cpp
@@ -350,6 +350,14 @@ if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_CXX_COMPILER_ID}" STREQ
   SET( CMAKE_SHARED_LINKER_FLAGS  "${CMAKE_SHARED_LINKER_FLAGS} ${GCC_STATIC_LINK_FLAGS}" )
 endif()
 
+find_package(Qt5 COMPONENTS Core Widgets Gui REQUIRED)
+
+add_library(NUI STATIC IMPORTED)
+if(MINGW)
+  set_target_properties(NUI PROPERTIES IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/GLideNUI/build/debug/libGLideNUI.a")
+else(MINGW)
+  set_target_properties(NUI PROPERTIES IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/GLideNUI/build/libGLideNUI.a")
+endif(MINGW)
 add_library( ${GLideN64_DLL_NAME} SHARED ${GLideN64_SOURCES})
 
 if( CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -363,15 +371,15 @@ if( CMAKE_BUILD_TYPE STREQUAL "Debug")
 
   if(SDL)
         if (NOHQ)
-	  target_link_libraries(${GLideN64_DLL_NAME} PRIVATE ${OPENGL_LIBRARIES} ${SDL_LIBRARIES} ${FREETYPE_LIBRARIES} osald )
+	  target_link_libraries(${GLideN64_DLL_NAME} PRIVATE ${OPENGL_LIBRARIES} ${SDL_LIBRARIES} ${FREETYPE_LIBRARIES} osald NUI Qt5::Widgets Qt5::Core Qt5::Gui )
 	else (NOHQ)
-	  target_link_libraries(${GLideN64_DLL_NAME} PRIVATE ${OPENGL_LIBRARIES} ${SDL_LIBRARIES} ${FREETYPE_LIBRARIES} osald GLideNHQd )
+	  target_link_libraries(${GLideN64_DLL_NAME} PRIVATE ${OPENGL_LIBRARIES} ${SDL_LIBRARIES} ${FREETYPE_LIBRARIES} osald GLideNHQd NUI Qt5::Widgets Qt5::Core Qt5::Gui )
 	endif (NOHQ)
   else(SDL)
 	if (NOHQ)
-	  target_link_libraries(${GLideN64_DLL_NAME} PRIVATE ${OPENGL_LIBRARIES} ${FREETYPE_LIBRARIES} osald )
+	  target_link_libraries(${GLideN64_DLL_NAME} PRIVATE ${OPENGL_LIBRARIES} ${FREETYPE_LIBRARIES} osald NUI Qt5::Widgets Qt5::Core Qt5::Gui )
 	else (NOHQ)
-	  target_link_libraries(${GLideN64_DLL_NAME} PRIVATE ${OPENGL_LIBRARIES} ${FREETYPE_LIBRARIES} osald GLideNHQd )
+	  target_link_libraries(${GLideN64_DLL_NAME} PRIVATE ${OPENGL_LIBRARIES} ${FREETYPE_LIBRARIES} osald GLideNHQd NUI Qt5::Widgets Qt5::Core Qt5::Gui )
 	endif (NOHQ)
   endif(SDL)
 endif( CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -396,15 +404,15 @@ if( CMAKE_BUILD_TYPE STREQUAL "Release")
 
   if(SDL)
 	if (NOHQ)
-	  target_link_libraries(${GLideN64_DLL_NAME} ${OPENGL_LIBRARIES} ${SDL_LIBRARIES} ${FREETYPE_LIBRARIES} osal )
+	  target_link_libraries(${GLideN64_DLL_NAME} ${OPENGL_LIBRARIES} ${SDL_LIBRARIES} ${FREETYPE_LIBRARIES} osal NUI Qt5::Widgets Qt5::Core Qt5::Gui )
 	else (NOHQ)
-	  target_link_libraries(${GLideN64_DLL_NAME} ${OPENGL_LIBRARIES} ${SDL_LIBRARIES} ${FREETYPE_LIBRARIES} osal GLideNHQ )
+	  target_link_libraries(${GLideN64_DLL_NAME} ${OPENGL_LIBRARIES} ${SDL_LIBRARIES} ${FREETYPE_LIBRARIES} osal GLideNHQ NUI Qt5::Widgets Qt5::Core Qt5::Gui )
 	endif (NOHQ)
   else(SDL)
 	if (NOHQ)
-	  target_link_libraries(${GLideN64_DLL_NAME} ${OPENGL_LIBRARIES} ${FREETYPE_LIBRARIES} osal )
+	  target_link_libraries(${GLideN64_DLL_NAME} ${OPENGL_LIBRARIES} ${FREETYPE_LIBRARIES} osal NUI Qt5::Widgets Qt5::Core Qt5::Gui )
 	else (NOHQ)
-	  target_link_libraries(${GLideN64_DLL_NAME} ${OPENGL_LIBRARIES} ${FREETYPE_LIBRARIES} osal GLideNHQ )
+	  target_link_libraries(${GLideN64_DLL_NAME} ${OPENGL_LIBRARIES} ${FREETYPE_LIBRARIES} osal GLideNHQ NUI Qt5::Widgets Qt5::Core Qt5::Gui )
 	endif (NOHQ)
   endif(SDL)
 endif( CMAKE_BUILD_TYPE STREQUAL "Release")
