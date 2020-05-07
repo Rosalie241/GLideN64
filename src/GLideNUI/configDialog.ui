@@ -29,6 +29,9 @@
    </property>
    <item>
     <widget class="QTabWidget" name="tabWidget">
+     <property name="currentIndex">
+      <number>0</number>
+     </property>
      <property name="usesScrollButtons">
       <bool>false</bool>
      </property>
@@ -3687,6 +3690,37 @@
        </item>
       </layout>
      </widget>
+     <widget class="QWidget" name="keyBindingsTab">
+      <attribute name="title">
+       <string>Key Bindings</string>
+      </attribute>
+      <widget class="QLabel" name="label_2">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>10</y>
+         <width>81</width>
+         <height>21</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Dump Texture:</string>
+       </property>
+      </widget>
+      <widget class="QPushButton" name="dumpKeyButton">
+       <property name="geometry">
+        <rect>
+         <x>100</x>
+         <y>10</y>
+         <width>75</width>
+         <height>23</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Unknown</string>
+       </property>
+      </widget>
+     </widget>
     </widget>
    </item>
    <item>
@@ -4063,9 +4097,9 @@
   </connection>
  </connections>
  <buttongroups>
-  <buttongroup name="factorButtonGroup"/>
-  <buttongroup name="osdButtonGroup"/>
   <buttongroup name="fixTexrectCoordsButtonGroup"/>
+  <buttongroup name="osdButtonGroup"/>
   <buttongroup name="screenshotButtonGroup"/>
+  <buttongroup name="factorButtonGroup"/>
  </buttongroups>
 </ui>

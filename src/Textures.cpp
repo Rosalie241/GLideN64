@@ -1443,13 +1443,13 @@ void TextureCache::update(u32 _t)
 {
 	if (config.textureFilter.txHiresEnable != 0 && config.textureFilter.txDump != 0) {
 		/* Force reload hi-res textures. Useful for texture artists */
-		if (isKeyPressed(G64_VK_R, 0x0001)) {
+		if (isRawKeyPressed(config.keyBindings.txHiresReload, 0x0001)) {
 			if (txfilter_reloadhirestex()) {
 				_clear();
 			}
 		}
 		/* Turn on texture dump */
-		else if (isKeyPressed(G64_VK_D, 0x0001)) {
+		else if (isRawKeyPressed(config.keyBindings.txDump, 0x0001)) {
 			m_toggleDumpTex = !m_toggleDumpTex;
 			if (m_toggleDumpTex) {
 				displayLoadProgress(L"Texture dump - ON\n");

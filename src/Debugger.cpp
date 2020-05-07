@@ -153,7 +153,7 @@ Debugger::~Debugger()
 
 void Debugger::checkDebugState()
 {
-	if (isKeyPressed(G64_VK_SCROLL, 0x0001))
+	if (isRawKeyPressed(config.keyBindings.toggleDebugMode, 0x0001))
 		m_bDebugMode = !m_bDebugMode;
 
 	if (m_bDebugMode && isKeyPressed(G64_VK_INSERT, 0x0001))

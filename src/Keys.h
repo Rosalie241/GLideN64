@@ -92,5 +92,6 @@ class Glide64Keys
 };
 
 bool isKeyPressed(int _key, int _mask);
+bool isRawKeyPressed(int keyCode, int mask);
 
 #endif //Keys_H

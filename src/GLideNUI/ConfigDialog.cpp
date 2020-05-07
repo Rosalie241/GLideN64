@@ -331,6 +331,8 @@ void ConfigDialog::_init(bool reInit, bool blockCustomSettings)
 	ui->buttonBox->button(QDialogButtonBox::Close)->setText(tr("Close"));
 	ui->buttonBox->button(QDialogButtonBox::RestoreDefaults)->setText(tr("Restore Defaults"));
 
+	ui->dumpKeyButton->setText(QString::fromStdString(std::to_string(config.keyBindings.txDump)));
+
 	ui->dumpLowCheckBox->setChecked((config.debug.dumpMode & DEBUG_LOW) != 0);
 	ui->dumpNormalCheckBox->setChecked((config.debug.dumpMode & DEBUG_NORMAL) != 0);
 	ui->dumpDetailCheckBox->setChecked((config.debug.dumpMode & DEBUG_DETAIL) != 0);

@@ -132,3 +132,16 @@ bool isKeyPressed(int _key, int _mask)
 #endif
 	return 0;
 }
+
+bool isRawKeyPressed(int keyCode, int mask)
+{
+#ifdef OS_WINDOWS
+#ifdef MUPENPLUSAPI
+	return (GetAsyncKeyState(keyCode) & mask) != 0;
+#else
+	return (GetAsyncKeyState(keyCode) & mask) != 0 && GetForegroundWindow() == hWnd;
+#endif // MUPENPLUSAPI
+#endif // OS_WINDOWS
+
+	return 0;
+}

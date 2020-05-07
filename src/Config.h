@@ -183,6 +183,13 @@ struct Config
 
 	struct
 	{
+		u32 txDump;
+		u32 txHiresReload;
+		u32 toggleDebugMode;
+	} keyBindings;
+
+	struct
+	{
 		std::string name;
 		u32 size;
 		u8 color[4];

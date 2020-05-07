@@ -108,6 +108,12 @@ void Config::resetToDefaults()
 	gln_wcscat(textureFilter.txDumpPath, wst("/texture_dump"));
 
 #ifdef OS_WINDOWS
+	// windows exclusive keycodes
+	// isKeyPressed is windows only anyways
+	keyBindings.txDump = 0x40;
+	keyBindings.txHiresReload = 0x52;
+	keyBindings.toggleDebugMode = 0x91;
+
 	font.name.assign("arial.ttf");
 #elif defined (OS_ANDROID)
 	font.name.assign("DroidSans.ttf");

@@ -297,6 +297,10 @@ void writeSettings(const QString & _strIniFolder)
 	settings.setValue("osdPos", config.onScreenDisplay.pos);
 	settings.endGroup();
 
+	settings.beginGroup("keyBindings");
+	settings.setValue("txDump", config.keyBindings.txDump);
+	settings.endGroup();
+
 	settings.beginGroup("debug");
 	settings.setValue("dumpMode", config.debug.dumpMode);
 	settings.endGroup();
