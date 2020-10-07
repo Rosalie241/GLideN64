@@ -31,6 +31,14 @@ void DisplayWindow::stop()
 
 void DisplayWindow::restart()
 {
+	if (m_bFullscreen) {
+		m_resizeWidth = config.video.fullscreenWidth;
+		m_resizeHeight = config.video.fullscreenHeight;
+	} else {
+		m_resizeWidth = config.video.windowedWidth;
+		m_resizeHeight = config.video.windowedHeight;
+	}
+
 	m_bResizeWindow = true;
 }
 
