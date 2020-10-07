@@ -172,7 +172,7 @@ bool DisplayWindowMupen64plus::_resizeWindow()
 		m_bFullscreen = false;
 
 	if (_supportsWithRateFunctions) {
-		m64p_video_flags flags = {};
+		m64p_video_flags flags = M64VIDEOFLAG_SUPPORT_RESIZING;
 
 		m_width = m_screenWidth = m_resizeWidth;
 		m_height = m_screenHeight = m_resizeHeight;
@@ -227,7 +227,7 @@ void DisplayWindowMupen64plus::_changeWindow()
 			m_screenHeight = config.video.windowedHeight;
 		}
 
-		m64p_video_flags flags = {};
+		m64p_video_flags flags = M64VIDEOFLAG_SUPPORT_RESIZING;
 		returnValue = FunctionWrapper::CoreVideo_SetVideoModeWithRate(m_screenWidth, m_screenHeight, m_screenRefresh, 0, m_bFullscreen ? M64VIDEO_FULLSCREEN : M64VIDEO_WINDOWED, flags);
 
 		if (returnValue != M64ERR_SUCCESS) {
