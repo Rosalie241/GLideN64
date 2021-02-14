@@ -64,6 +64,7 @@ namespace graphics {
 		virtual ShaderProgram * createTexrectColorAndDepthDownscaleCopyShader() = 0;
 		virtual ShaderProgram * createGammaCorrectionShader() = 0;
 		virtual ShaderProgram * createFXAAShader() = 0;
+		virtual ShaderProgram * createReshadeShader() = 0;
 		virtual TextDrawerShaderProgram * createTextDrawerShader() = 0;
 		virtual void resetShaderProgram() = 0;
 		virtual void drawTriangles(const Context::DrawTriangleParameters & _params) = 0;

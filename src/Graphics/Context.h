@@ -249,6 +249,8 @@ namespace graphics {
 
 		ShaderProgram * createFXAAShader();
 
+		ShaderProgram * createReshadeShader();
+
 		TextDrawerShaderProgram * createTextDrawerShader();
 
 		void resetShaderProgram();

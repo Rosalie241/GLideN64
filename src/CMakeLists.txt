@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.9)
 
+#needed for reshade
+set(CMAKE_CXX_STANDARD 17)
+
+
 option(EGL "Set to ON if targeting an EGL device" ${EGL})
 option(PANDORA "Set to ON if targeting an OpenPandora" ${PANDORA})
 option(ODROID "Set to ON if targeting an Odroid" ${ODROID})
@@ -92,6 +96,7 @@ set(GLideN64_SOURCES
   Graphics/OpenGLContext/GLSL/glsl_CombinerProgramImpl.cpp
   Graphics/OpenGLContext/GLSL/glsl_CombinerProgramUniformFactory.cpp
   Graphics/OpenGLContext/GLSL/glsl_FXAA.cpp
+  Graphics/OpenGLContext/GLSL/glsl_Reshade.cpp
   Graphics/OpenGLContext/GLSL/glsl_ShaderStorage.cpp
   Graphics/OpenGLContext/GLSL/glsl_SpecialShadersFactory.cpp
   Graphics/OpenGLContext/GLSL/glsl_Utils.cpp
@@ -120,6 +125,21 @@ set(GLideN64_SOURCES
   uCodes/Turbo3D.cpp
   uCodes/ZSort.cpp
   uCodes/ZSortBOSS.cpp
+#  Reshade/effect_codegen.hpp
+#  Reshade/effect_codegen_glsl.cpp
+#  Reshade/effect_expression.cpp
+#  Reshade/effect_expression.hpp
+#  Reshade/effect_lexer.cpp
+#  Reshade/effect_lexer.hpp
+#  Reshade/effect_module.hpp
+#  Reshade/effect_parser.hpp
+#  Reshade/effect_preprocessor.cpp
+#  Reshade/effect_preprocessor.hpp
+#  Reshade/effect_symbol_table.cpp
+#  Reshade/effect_symbol_table.hpp
+#  Reshade/effect_symbol_table_intrinsics.inl
+#  Reshade/effect_token.hpp
+#
 )
 
 set(GLideNUI_SOURCES
@@ -223,6 +243,8 @@ endif(MUPENPLUSAPI)
 
 add_subdirectory( osal )
 include_directories( osal )
+
+add_subdirectory( Reshade )
 
 if (NOHQ)
   list(APPEND GLideN64_SOURCES
@@ -472,7 +494,7 @@ if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_CXX_COMPILER_ID}" STREQ
   set( CMAKE_SHARED_LINKER_FLAGS  "${CMAKE_SHARED_LINKER_FLAGS} ${GCC_STATIC_LINK_FLAGS}" )
 endif()
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 
 add_library( ${GLideN64_DLL_NAME} SHARED ${GLideN64_SOURCES} ${PATH_REVISION})
 
@@ -487,15 +509,15 @@ if( CMAKE_BUILD_TYPE STREQUAL "Debug")
 
   if(SDL)
         if (NOHQ)
-	  target_link_libraries(${GLideN64_DLL_NAME} PRIVATE ${OPENGL_LIBRARIES} ${SDL_LIBRARIES} ${FREETYPE_LIBRARIES} ${LOG_LIB} ${GLIDENUI_LIBRARIES} osald )
+	  target_link_libraries(${GLideN64_DLL_NAME} PRIVATE ${OPENGL_LIBRARIES} ${SDL_LIBRARIES} ${FREETYPE_LIBRARIES} ${LOG_LIB} ${GLIDENUI_LIBRARIES} osald Reshade )
 	else (NOHQ)
-	  target_link_libraries(${GLideN64_DLL_NAME} PRIVATE ${OPENGL_LIBRARIES} ${SDL_LIBRARIES} ${FREETYPE_LIBRARIES} ${LOG_LIB} ${GLIDENUI_LIBRARIES} osald GLideNHQd )
+	  target_link_libraries(${GLideN64_DLL_NAME} PRIVATE ${OPENGL_LIBRARIES} ${SDL_LIBRARIES} ${FREETYPE_LIBRARIES} ${LOG_LIB} ${GLIDENUI_LIBRARIES} osald GLideNHQd Reshade )
 	endif (NOHQ)
   else(SDL)
 	if (NOHQ)
-	  target_link_libraries(${GLideN64_DLL_NAME} PRIVATE ${OPENGL_LIBRARIES} ${FREETYPE_LIBRARIES} ${LOG_LIB} ${GLIDENUI_LIBRARIES} osald )
+	  target_link_libraries(${GLideN64_DLL_NAME} PRIVATE ${OPENGL_LIBRARIES} ${FREETYPE_LIBRARIES} ${LOG_LIB} ${GLIDENUI_LIBRARIES} osald Reshade )
 	else (NOHQ)
-	  target_link_libraries(${GLideN64_DLL_NAME} PRIVATE ${OPENGL_LIBRARIES} ${FREETYPE_LIBRARIES} ${LOG_LIB} ${GLIDENUI_LIBRARIES} osald GLideNHQd )
+	  target_link_libraries(${GLideN64_DLL_NAME} PRIVATE ${OPENGL_LIBRARIES} ${FREETYPE_LIBRARIES} ${LOG_LIB} ${GLIDENUI_LIBRARIES} osald GLideNHQd Reshade )
 	endif (NOHQ)
   endif(SDL)
 endif( CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -519,15 +541,15 @@ if( CMAKE_BUILD_TYPE STREQUAL "Release")
 
   if(SDL)
 	if (NOHQ)
-	  target_link_libraries(${GLideN64_DLL_NAME} ${OPENGL_LIBRARIES} ${SDL_LIBRARIES} ${FREETYPE_LIBRARIES} ${LOG_LIB} ${GLIDENUI_LIBRARIES} osal )
+	  target_link_libraries(${GLideN64_DLL_NAME} ${OPENGL_LIBRARIES} ${SDL_LIBRARIES} ${FREETYPE_LIBRARIES} ${LOG_LIB} ${GLIDENUI_LIBRARIES} osal Reshade )
 	else (NOHQ)
-	  target_link_libraries(${GLideN64_DLL_NAME} ${OPENGL_LIBRARIES} ${SDL_LIBRARIES} ${FREETYPE_LIBRARIES} ${LOG_LIB} ${GLIDENUI_LIBRARIES} osal GLideNHQ )
+	  target_link_libraries(${GLideN64_DLL_NAME} ${OPENGL_LIBRARIES} ${SDL_LIBRARIES} ${FREETYPE_LIBRARIES} ${LOG_LIB} ${GLIDENUI_LIBRARIES} osal GLideNHQ Reshade )
 	endif (NOHQ)
   else(SDL)
 	if (NOHQ)
-	  target_link_libraries(${GLideN64_DLL_NAME} ${OPENGL_LIBRARIES} ${FREETYPE_LIBRARIES} ${LOG_LIB} ${GLIDENUI_LIBRARIES} osal )
+	  target_link_libraries(${GLideN64_DLL_NAME} ${OPENGL_LIBRARIES} ${FREETYPE_LIBRARIES} ${LOG_LIB} ${GLIDENUI_LIBRARIES} osal Reshade )
 	else (NOHQ)
-	  target_link_libraries(${GLideN64_DLL_NAME} ${OPENGL_LIBRARIES} ${FREETYPE_LIBRARIES} ${LOG_LIB} ${GLIDENUI_LIBRARIES} osal GLideNHQ )
+	  target_link_libraries(${GLideN64_DLL_NAME} ${OPENGL_LIBRARIES} ${FREETYPE_LIBRARIES} ${LOG_LIB} ${GLIDENUI_LIBRARIES} osal GLideNHQ Reshade )
 	endif (NOHQ)
   endif(SDL)
 endif( CMAKE_BUILD_TYPE STREQUAL "Release")

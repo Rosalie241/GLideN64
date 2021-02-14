@@ -40,6 +40,8 @@ namespace glsl {
 
 		graphics::ShaderProgram * createFXAAShader() const;
 
+		graphics::ShaderProgram * createReshadeShader() const;
+
 		graphics::TextDrawerShaderProgram * createTextDrawerShader() const;
 
 	private:

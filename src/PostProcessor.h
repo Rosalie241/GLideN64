@@ -31,6 +31,7 @@ private:
 
 	FrameBuffer * _doGammaCorrection(FrameBuffer * _pBuffer);
 	FrameBuffer * _doFXAA(FrameBuffer * _pBuffer);
+	FrameBuffer * _doReshade(FrameBuffer * _pBuffer);
 
 	void _createResultBuffer(const FrameBuffer * _pMainBuffer);
 	void _preDraw(FrameBuffer * _pBuffer);
@@ -39,6 +40,7 @@ private:
 
 	std::unique_ptr<graphics::ShaderProgram> m_gammaCorrectionProgram;
 	std::unique_ptr<graphics::ShaderProgram> m_FXAAProgram;
+	std::unique_ptr<graphics::ShaderProgram> m_ReshadeProgram;
 	std::unique_ptr<FrameBuffer> m_pResultBuffer;
 	CachedTexture * m_pTextureOriginal;
 	PostprocessingList m_postprocessingList;

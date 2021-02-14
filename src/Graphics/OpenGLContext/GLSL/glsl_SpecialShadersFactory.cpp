@@ -14,6 +14,7 @@
 #include "glsl_SpecialShadersFactory.h"
 #include "glsl_ShaderPart.h"
 #include "glsl_FXAA.h"
+#include "glsl_Reshade.h"
 #include "glsl_Utils.h"
 
 namespace glsl {
@@ -693,6 +694,41 @@ namespace glsl {
 		u16 m_height = 0;
 	};
 
+	/*---------------ReshadeShader-------------*/
+	typedef SpecialShader<ReshadeShader, ReshadeShader> ReshadeShaderBase;
+
+	class ReshadeShader2 : public ReshadeShaderBase
+	{
+	public:
+		ReshadeShader2(const opengl::GLInfo & _glinfo,
+			opengl::CachedUseProgram * _useProgram,
+			const ShaderPart * _vertexHeader,
+			const ShaderPart * _fragmentHeader,
+			const ShaderPart * _fragmentEnd)
+			: ReshadeShaderBase(_glinfo, _useProgram, _vertexHeader, _fragmentHeader, _fragmentEnd)
+		{
+			m_useProgram->useProgram(m_program);
+			//m_textureSizeLoc = glGetUniformLocation(GLuint(m_program), "uTextureSize");
+			m_useProgram->useProgram(graphics::ObjectHandle::null);
+		}
+
+		void activate() {
+			ReshadeShaderBase::activate();
+			FrameBuffer * pBuffer = frameBufferList().findBuffer(*REG.VI_ORIGIN & 0xffffff);
+			if (pBuffer != nullptr && pBuffer->m_pTexture != nullptr &&
+				(m_width != pBuffer->m_pTexture->width || m_height != pBuffer->m_pTexture->height)) {
+				m_width = pBuffer->m_pTexture->width;
+				m_height = pBuffer->m_pTexture->height;
+				//glUniform2f(m_textureSizeLoc, GLfloat(m_width), GLfloat(m_height));
+			}
+		}
+
+	private:
+		int m_textureSizeLoc = -1;
+		u16 m_width = 0;
+		u16 m_height = 0;
+	};
+
 	/*---------------TexrectDrawerShader-------------*/
 
 	class TexrectDrawerShaderDraw : public graphics::TexrectDrawerShaderProgram
@@ -992,6 +1028,11 @@ namespace glsl {
 	graphics::ShaderProgram * SpecialShadersFactory::createFXAAShader() const
 	{
 		return new FXAAShader(m_glinfo, m_useProgram, m_vertexHeader, m_fragmentHeader, m_fragmentEnd);
+	}
+
+	graphics::ShaderProgram * SpecialShadersFactory::createReshadeShader() const
+	{
+		return new ReshadeShader2(m_glinfo, m_useProgram, m_vertexHeader, m_fragmentHeader, m_fragmentEnd);
 	}
 
 	graphics::TextDrawerShaderProgram * SpecialShadersFactory::createTextDrawerShader() const

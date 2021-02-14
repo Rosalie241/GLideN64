@@ -319,6 +319,11 @@ ShaderProgram * Context::createFXAAShader()
 	return m_impl->createFXAAShader();
 }
 
+ShaderProgram * Context::createReshadeShader()
+{
+	return m_impl->createReshadeShader();
+}
+
 TextDrawerShaderProgram * Context::createTextDrawerShader()
 {
 	return m_impl->createTextDrawerShader();

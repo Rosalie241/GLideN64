@@ -72,6 +72,8 @@ void PostProcessor::init()
 		m_FXAAProgram.reset(gfxContext.createFXAAShader());
 		m_postprocessingList.emplace_front(std::mem_fn(&PostProcessor::_doFXAA));
 	}
+	m_ReshadeProgram.reset(gfxContext.createReshadeShader());
+	m_postprocessingList.emplace_front(std::mem_fn(&PostProcessor::_doReshade));
 }
 
 void PostProcessor::destroy()
@@ -168,4 +170,12 @@ FrameBuffer * PostProcessor::_doFXAA(FrameBuffer * _pBuffer)
 		return _pBuffer;
 
 	return _doPostProcessing(_pBuffer, m_FXAAProgram.get());
+}
+
+FrameBuffer * PostProcessor::_doReshade(FrameBuffer * _pBuffer)
+{
+	if (_pBuffer == nullptr)
+		return nullptr;
+
+	return _doPostProcessing(_pBuffer, m_ReshadeProgram.get());
 }
