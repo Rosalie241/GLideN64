@@ -135,7 +135,7 @@ set(GLideNUI_SOURCES
   GLideNUI/icon.qrc
 )
 
-if(MUPENPLUSAPI_GLIDENUI)
+if(MUPENPLUSAPI_GLIDENUI OR (WIN32 AND NOT MUPENPLUSAPI))
   set(CMAKE_AUTOMOC ON)
   set(CMAKE_AUTORCC ON)
   set(CMAKE_AUTOUIC ON)
@@ -144,10 +144,16 @@ if(MUPENPLUSAPI_GLIDENUI)
   set(GLIDENUI_LIBRARIES
       Qt5::Widgets Qt5::Core Qt5::Gui
   )
+  if (MUPENPLUSAPI_GLIDENUI)
   list(APPEND GLideNUI_SOURCES
     GLideNUI/fullscreenresolutions_mupen64plus.cpp
   )
-endif(MUPENPLUSAPI_GLIDENUI)
+  else()
+  list(APPEND GLideNUI_SOURCES
+	GLideNUI/fullscreenresolutions_windows.cpp
+  )
+  endif()
+endif()
 
 #check if we're running on Raspberry Pi
 if(EXISTS "${CMAKE_FIND_ROOT_PATH}/opt/vc/include/bcm_host.h" AND NOT MESA)
@@ -172,12 +178,13 @@ else(EXISTS "${CMAKE_FIND_ROOT_PATH}/opt/vc/include/bcm_host.h" AND NOT MESA)
   set(EGL_LIB -lEGL)
 endif(EXISTS "${CMAKE_FIND_ROOT_PATH}/opt/vc/include/bcm_host.h" AND NOT MESA)
 
+include_directories( . inc )
+
 if(MUPENPLUSAPI)
   add_definitions(
 	-DMUPENPLUSAPI
 		-DTXFILTER_LIB
   )
-  include_directories( . inc )
   set(GLideN64_SOURCES_UNIX
 	MupenPlusPluginAPI.cpp
 	mupenplus/CommonAPIImpl_mupenplus.cpp
@@ -214,9 +221,10 @@ else(MUPENPLUSAPI)
 	windows/CommonAPIImpl_windows.cpp
 	windows/GLideN64_windows.cpp
 	windows/MemoryStatus_windows.cpp
-	common/GLFunctions.cpp
 	windows/ZilmarAPIImpl_windows.cpp
+	Graphics/OpenGLContext/windows/WindowsWGL.cpp
 	Graphics/OpenGLContext/windows/windows_DisplayWindow.cpp
+	${GLideNUI_SOURCES}
   )
   set(GLideN64_DLL_NAME GLideN64)
 endif(MUPENPLUSAPI)
@@ -361,11 +369,11 @@ if(ANDROID)
             ${ANDROID_LIB_PATH}/libs/${BUILD_VARIANT}/${ANDROID_ABI}/libfreetype.so)
     set(FREETYPE_LIBRARIES ANDROID_FREETYPE)
 else(ANDROID)
-    FIND_PACKAGE( Freetype REQUIRED )
+   FIND_PACKAGE( Freetype REQUIRED )
 endif(ANDROID)
 
 include_directories( ${FREETYPE_INCLUDE_DIRS} )
-
+set(FREETYPE_LIBRARIES "")
 if(VEC4_OPT)
   add_definitions(
     -D__VEC4_OPT
@@ -472,6 +480,7 @@ if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_CXX_COMPILER_ID}" STREQ
   set( CMAKE_SHARED_LINKER_FLAGS  "${CMAKE_SHARED_LINKER_FLAGS} ${GCC_STATIC_LINK_FLAGS}" )
 endif()
 
+
 set(CMAKE_CXX_STANDARD 11)
 
 add_library( ${GLideN64_DLL_NAME} SHARED ${GLideN64_SOURCES} ${PATH_REVISION})
@@ -504,8 +513,8 @@ if( CMAKE_BUILD_TYPE STREQUAL "Release")
   include(CheckIPOSupported)
   check_ipo_supported(RESULT result)
   if(result)
-    message("Interprocedural optimizations enabled")
-    set_property(TARGET ${GLideN64_DLL_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+  #  message("Interprocedural optimizations enabled")
+   # set_property(TARGET ${GLideN64_DLL_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -O3")
   endif()
 
