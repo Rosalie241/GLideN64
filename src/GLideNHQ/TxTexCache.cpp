@@ -36,9 +36,9 @@ TxTexCache::~TxTexCache()
 {
 }
 
-TxTexCache::TxTexCache(int options, int cachesize, const wchar_t *cachePath, const wchar_t *ident,
+TxTexCache::TxTexCache(int options, int cachesize, const wchar_t *cachePath, const wchar_t *fullTexPath, const wchar_t *ident,
 					   dispInfoFuncExt callback)
-						 : TxCache((options & ~(GZ_HIRESTEXCACHE | FILE_HIRESTEXCACHE)), cachesize, cachePath, ident, callback)
+						 : TxCache((options & ~(GZ_HIRESTEXCACHE | FILE_HIRESTEXCACHE)), cachesize, cachePath, fullTexPath, ident, nullptr, callback)
 						 , _cacheDumped(false)
 {
 	/* assert local options */

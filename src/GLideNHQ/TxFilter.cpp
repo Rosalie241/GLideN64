@@ -145,12 +145,18 @@ TxFilter::TxFilter(int maxwidth,
 	hq4x_init();
 #endif
 
+	wchar_t fullTexPackPath[MAX_PATH];
+
+	wcscpy(fullTexPackPath, texPackPath);
+	wcscat(fullTexPackPath, OSAL_DIR_SEPARATOR_STR);
+	wcscat(fullTexPackPath, ident);
+
 	/* initialize texture cache in bytes. 128Mb will do nicely in most cases */
-	_txTexCache = new TxTexCache(_options, _cacheSize, texCachePath, _ident.c_str(), callback);
+	_txTexCache = new TxTexCache(_options, _cacheSize, texCachePath, fullTexPackPath, _ident.c_str(), callback);
 
 	/* hires texture */
 #if HIRES_TEXTURE
-	_txHiResCache = new TxHiResCache(_maxwidth, _maxheight, _maxbpp, _options, texCachePath, texPackPath, _ident.c_str(), callback);
+	_txHiResCache = new TxHiResCache(_maxwidth, _maxheight, _maxbpp, _options, texCachePath, texPackPath, fullTexPackPath, _ident.c_str(), callback);
 
 	if (_txHiResCache->empty())
 		_options &= ~HIRESTEXTURES_MASK;
@@ -639,7 +645,7 @@ TxFilter::reloadhirestex()
 {
 	DBG_INFO(80, wst("Reload hires textures from texture pack.\n"));
 
-	if (_txHiResCache->load(0) && !_txHiResCache->empty()) {
+	if (_txHiResCache->reload()) {
 		_options |= HIRESTEXTURES_MASK;
 		return 1;
 	}

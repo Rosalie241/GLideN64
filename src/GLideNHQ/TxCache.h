@@ -69,6 +69,7 @@ protected:
 	bool del(Checksum checksum); /* checksum hi:palette low:texture */
 	bool isCached(Checksum checksum); /* checksum hi:palette low:texture */
 	void clear();
+	bool useReload() const;
 	uint64 size() const; // number of elements
 	uint64 totalSize() const; // size of elements in bytes
 	uint64 cacheLimit() const;
@@ -80,9 +81,10 @@ protected:
 
 public:
 	virtual ~TxCache();
-	TxCache(uint32 options, uint64 cacheLimit, const wchar_t *cachePath, const wchar_t *ident, dispInfoFuncExt callback);
+	TxCache(uint32 options, uint64 cacheLimit, const wchar_t *cachePath, const wchar_t *fullTexPath, const wchar_t *ident, void* txHiresCache, dispInfoFuncExt callback);
 	bool add(Checksum checksum, GHQTexInfo *info, int dataSize = 0);
 	bool get(Checksum checksum, GHQTexInfo *info);
+	bool reload();
 	bool empty() const;
 };
 

@@ -36,6 +36,7 @@
 
 #include "TxCache.h"
 #include "TxDbg.h"
+#include "TxHiResCache.h"
 
 class TxCacheImpl
 {
@@ -49,6 +50,8 @@ public:
 	virtual bool del(Checksum checksum) = 0;
 	virtual bool isCached(Checksum checksum) = 0;
 	virtual void clear() = 0;
+	virtual bool useReload() const = 0;
+	virtual bool reload() = 0;
 	virtual bool empty() const = 0;
 	virtual uint32 getOptions() const = 0;
 	virtual void setOptions(uint32 options) = 0;
@@ -75,6 +78,8 @@ public:
 	bool del(Checksum checksum) override;
 	bool isCached(Checksum checksum) override;
 	void clear() override;
+	bool useReload() const override { return false; }
+	bool reload() override { return true; }
 	bool empty() const  override { return _cache.empty(); }
 
 	uint64 size() const  override { return _cache.size(); }
@@ -492,6 +497,8 @@ public:
 	bool del(Checksum checksum) override { return false; }
 	bool isCached(Checksum checksum) override;
 	void clear() override;
+	bool useReload() const override { return false; }
+	bool reload() override { return true; }
 	bool empty() const override { return _storage.empty(); }
 
 	uint64 size() const override { return _storage.size(); }
@@ -854,6 +861,269 @@ bool TxFileStorage::isCached(Checksum checksum)
 	return _storage.find(checksum) != _storage.end();
 }
 
+/************************** TxNoCache *************************************/
+class TxNoCache : public TxCacheImpl
+{
+public:
+	TxNoCache(uint32 _options, const wchar_t *texturesPath, const wchar_t *ident, TxHiResCache *txHiResCache, dispInfoFuncExt callback);
+	~TxNoCache();
+
+	bool add(Checksum checksum, GHQTexInfo* info, int dataSize = 0) override { return true; }
+	bool get(Checksum checksum, GHQTexInfo *info) override;
+
+	bool save(const wchar_t* path, const wchar_t* filename, const int config) override { return true; }
+	bool load(const wchar_t* path, const wchar_t* filename, const int config, bool force) override { return true; }
+	bool del(Checksum checksum) override { return false; }
+	bool isCached(Checksum checksum) override { return true; }
+	void clear() override;
+	bool useReload() const override { return true; }
+	bool reload() override;
+	bool empty() const override { return false; }
+
+	uint64 size() const override { return 0UL; }
+	uint64 totalSize() const override { return 0UL; }
+	uint64 cacheLimit() const override { return 0UL; }
+	uint32 getOptions() const override { return _options; }
+	void setOptions(uint32 options) override { _options = options; }
+
+private:
+	typedef struct fileIndexEntry
+	{
+		char fname[MAX_PATH];
+		tx_wstring directory;
+		uint32 siz;
+		uint32 fmt;
+	} fileIndexEntry_t;
+
+	bool _createFileIndex(bool update);
+	bool _createFileIndexInDir(tx_wstring directory, bool update);
+
+	uint32 _options;
+	tx_wstring _fullTexPath;
+	tx_wstring _ident;
+	char _identc[MAX_PATH];
+	dispInfoFuncExt _callback;
+	TxHiResCache *_txHiresCache;
+	std::map<uint64, fileIndexEntry_t> _filesIndex;
+	std::map<uint64, GHQTexInfo> _loadedTex;
+};
+
+TxNoCache::TxNoCache(uint32 options, const wchar_t *fullTexPath, const wchar_t *ident, TxHiResCache* txHiResCache, dispInfoFuncExt callback)
+	: _options(options)
+	, _fullTexPath(fullTexPath)
+	, _txHiresCache(txHiResCache)
+	, _ident(ident)
+	, _callback(callback)
+{
+	/* store this for _createFileIndexInDir */
+	wcstombs(_identc, _ident.c_str(), MAX_PATH);
+
+#ifdef OS_WINDOWS
+	/* lowercase on windows */
+	for (uint32 i = 0; i < strlen(_identc); i++) _identc[i] = tolower(_identc[i]);
+#endif
+
+	_createFileIndex(false);
+}
+
+TxNoCache::~TxNoCache()
+{
+	clear();
+}
+
+bool TxNoCache::get(Checksum checksum, GHQTexInfo *info)
+{
+	if (!checksum) {
+		return false;
+	}
+
+	fileIndexEntry_t entry;
+
+#ifdef DEBUG
+	uint32 chksum = checksum._checksum & 0xffffffff;
+	uint32 palchksum = checksum._checksum >> 32;
+#endif
+
+	/* loop over each file from the index and try to match it with checksum */
+	auto indexEntry = _filesIndex.find(checksum);
+	if (indexEntry == _filesIndex.end()) {
+		DBG_INFO(80, wst("TxNoCache::get: chksum:%08X %08X not found\n"), chksum, palchksum);
+		return false;
+	}
+
+	entry = indexEntry->second;
+
+	/* make sure to not load the same texture twice */
+	auto loadedTexMap = _loadedTex.find(checksum);
+	if (loadedTexMap != _loadedTex.end()) {
+		DBG_INFO(80, wst("TxNoCache::get: cached chksum:%08X %08X found\n"), chksum, palchksum);
+		*info = loadedTexMap->second;
+		return true;
+	}
+
+	DBG_INFO(80, wst("TxNoCache::get: loading chksum:%08X %08X\n"), chksum, palchksum);
+
+	int width = 0, height = 0;
+	ColorFormat format;
+	uint8_t* tex = nullptr;
+
+	/* change current dir to directory */
+#ifdef OS_WINDOWS
+	wchar_t curpath[MAX_PATH];
+	GETCWD(MAX_PATH, curpath);
+	CHDIR(entry.directory.c_str());
+#else
+	char curpath[MAX_PATH];
+	char cbuf[MAX_PATH];
+	wcstombs(cbuf, entry.directory.c_str(), MAX_PATH);
+	GETCWD(MAX_PATH, curpath);
+	CHDIR(cbuf);
+#endif
+
+	/* load texture */
+	tex = _txHiresCache->loadFileInfoTex(entry.fname, entry.siz, &width, &height, entry.fmt, &format);
+
+	/* restore directory */
+	CHDIR(curpath);
+
+	if (tex == nullptr) {
+		/* failed to load texture, so return false */
+		DBG_INFO(80, wst("TxNoCache::get: failed to load chksum:%08X %08X\n"), chksum, palchksum);
+		return false;
+	}
+
+	DBG_INFO(80, wst("TxNoCache::get: loaded chksum:%08X %08X\n"), chksum, palchksum);
+
+	info->data = tex;
+	info->width = width;
+	info->height = height;
+	info->is_hires_tex = 1;
+	setTextureFormat(format, info);
+
+	/* add to loaded textures */
+	_loadedTex.insert(std::map<uint64, GHQTexInfo>::value_type(checksum, *info));
+	return true;
+}
+
+void TxNoCache::clear()
+{
+	/* free loaded textures */
+	for (auto texMap : _loadedTex) {
+		free(texMap.second.data);
+	}
+
+	/* clear all lists */
+	_loadedTex.clear();
+	_filesIndex.clear();
+}
+
+bool TxNoCache::reload()
+{
+	clear();
+	return _createFileIndex(true);
+}
+
+bool TxNoCache::_createFileIndex(bool update)
+{
+	/* don't display anything during an update,
+	*	it causes flicker on i.e an ssd
+	*/
+	if (!update && _callback) {
+		_callback(L"CREATING FILE INDEX. PLEASE WAIT...");
+	}
+
+	_createFileIndexInDir(_fullTexPath, update);
+
+	return true;
+}
+
+bool TxNoCache::_createFileIndexInDir(tx_wstring directory, bool update)
+{
+	/* find it on disk */
+	if (!osal_path_existsW(directory.c_str())) {
+		return false;
+	}
+
+	void *dir = osal_search_dir_open(directory.c_str());
+	const wchar_t *foundfilename;
+	tx_wstring texturefilename;
+	bool result = true;
+
+	do {
+		foundfilename = osal_search_dir_read_next(dir);
+		if (foundfilename == nullptr) {
+			/* no more files/directories */
+			break;
+		}
+
+		/* skip hidden files */
+		if (wccmp(foundfilename, wst("."))) {
+			continue;
+		}
+
+		texturefilename.assign(directory);
+		texturefilename += OSAL_DIR_SEPARATOR_STR;
+		texturefilename += foundfilename;
+
+		/* recursive read into sub-directory */
+		if (osal_is_directory(texturefilename.c_str())) {
+			result = _createFileIndexInDir(texturefilename.c_str(), update);
+			if (result) {
+				continue;
+			}
+			else {
+				break;
+			}
+		}
+
+		uint64 chksum64 = 0;
+		uint32 chksum = 0, palchksum = 0, length = 0;
+		fileIndexEntry_t entry;
+		entry.fmt = entry.siz = 0;
+		bool ret = false;
+
+		wcstombs(entry.fname, foundfilename, MAX_PATH);
+
+#ifdef OS_WINDOWS
+		/* lowercase on windows */
+		for (uint32 i = 0; i < strlen(entry.fname); i++) entry.fname[i] = tolower(entry.fname[i]);
+#endif
+
+		/* read in Rice's file naming convention */
+		length = _txHiresCache->checkFileName(_identc, entry.fname, &chksum, &palchksum, &entry.fmt, &entry.siz);
+		if (length == 0) {
+			/* invalid file name, skip it */
+			continue;
+		}
+
+		entry.directory = directory;
+
+		chksum64 = (uint64)palchksum;
+		if (chksum) {
+			chksum64 <<= 32;
+			chksum64 |= (uint64)chksum;
+		}
+
+		/* try to add entry to file index */
+		ret = _filesIndex.insert(std::map<uint64, fileIndexEntry_t>::value_type(chksum64, entry)).second;
+		if (!ret) {
+			/* technically we should probably fail here,
+			 * however HTS & HTC both don't fail when there are duplicates,
+			 * so to maintain backwards compatability, we won't either
+			 */
+			DBG_INFO(80, wst("TxNoCache::_createFileIndexInDir: failed to add cksum:%08X %08X file:%ls\n"), chksum, palchksum, texturefilename.c_str());
+		} else {
+			DBG_INFO(80, wst("TxNoCache::_createFileIndexInDir: added cksum:%08X %08X file:%ls\n"), chksum, palchksum, texturefilename.c_str());
+		}
+
+	} while (foundfilename != nullptr);
+
+	osal_search_dir_close(dir);
+
+	return result;
+}
+
+
 /************************** TxCache *************************************/
 
 TxCache::~TxCache()
@@ -863,7 +1133,9 @@ TxCache::~TxCache()
 TxCache::TxCache(uint32 options,
 	uint64 cachesize,
 	const wchar_t *cachePath,
+	const wchar_t *fullTexPath,
 	const wchar_t *ident,
+	void* txHiResCache,
 	dispInfoFuncExt callback)
 	: _callback(callback)
 {
@@ -875,10 +1147,14 @@ TxCache::TxCache(uint32 options,
 	if (ident)
 		_ident.assign(ident);
 
-	if ((options & FILE_CACHE_MASK) == 0)
+	if ((options & FILE_NOTEXCACHE) == FILE_NOTEXCACHE && txHiResCache != nullptr) {
+		_pImpl.reset(new TxNoCache(options, fullTexPath, ident, (TxHiResCache*)txHiResCache, _callback));
+	} else if ((options & FILE_CACHE_MASK) == 0) {
 		_pImpl.reset(new TxMemoryCache(options, cachesize, _callback));
-	else
+	} else {
 		_pImpl.reset(new TxFileStorage(options, cachePath, _callback));
+	}
+	
 }
 
 bool TxCache::add(Checksum checksum, GHQTexInfo *info, int dataSize)
@@ -931,9 +1207,19 @@ void TxCache::clear()
 	_pImpl->clear();
 }
 
+bool TxCache::useReload() const
+{
+	return _pImpl->useReload();
+}
+
 bool TxCache::empty() const
 {
 	return _pImpl->empty();
+}
+
+bool TxCache::reload()
+{
+	return _pImpl->reload();
 }
 
 uint32 TxCache::getOptions() const

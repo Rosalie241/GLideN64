@@ -2714,6 +2714,13 @@
                  </property>
                 </widget>
                </item>
+               <item>
+                <widget class="QCheckBox" name="noTexFileStorageCheckBox">
+                 <property name="text">
+                  <string>Use no file storage or cache (causes worse stutter, not recommended for playing games)</string>
+                 </property>
+                </widget>
+               </item>
               </layout>
              </item>
             </layout>
@@ -4037,9 +4044,9 @@
   </connection>
  </connections>
  <buttongroups>
-  <buttongroup name="osdButtonGroup"/>
   <buttongroup name="fixTexrectCoordsButtonGroup"/>
-  <buttongroup name="screenshotButtonGroup"/>
+  <buttongroup name="osdButtonGroup"/>
   <buttongroup name="factorButtonGroup"/>
+  <buttongroup name="screenshotButtonGroup"/>
  </buttongroups>
 </ui>

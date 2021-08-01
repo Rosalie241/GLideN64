@@ -39,6 +39,7 @@
 #include "TxHiResCache.h"
 #include "TxDbg.h"
 #include <osal_files.h>
+#include <osal_keys.h>
 #include <zlib.h>
 #include <math.h>
 #include <stdlib.h>
@@ -56,9 +57,10 @@ TxHiResCache::TxHiResCache(int maxwidth,
 						   int options,
 						   const wchar_t *cachePath,
 						   const wchar_t *texPackPath,
+						   const wchar_t *fullTexPath,
 						   const wchar_t *ident,
 						   dispInfoFuncExt callback)
-							 : TxCache((options & ~(GZ_TEXCACHE | FILE_TEXCACHE)), 0, cachePath, ident, callback)
+							 : TxCache((options & ~(GZ_TEXCACHE | FILE_TEXCACHE)), 0, cachePath, fullTexPath, ident, this, callback)
 							 , _maxwidth(maxwidth)
 							 , _maxheight(maxheight)
 							 , _maxbpp(maxbpp)
@@ -68,7 +70,6 @@ TxHiResCache::TxHiResCache(int maxwidth,
 							 , _txQuantize(new TxQuantize())
 							 , _txReSample(new TxReSample())
 {
-
 	if (texPackPath)
 		_texPackPath.assign(texPackPath);
 
@@ -151,6 +152,11 @@ bool TxHiResCache::load(boolean replace) /* 0 : reload, 1 : replace partial */
 		dir_path += OSAL_DIR_SEPARATOR_STR;
 		dir_path += _ident;
 
+		if ((getOptions() & FILE_NOTEXCACHE) == FILE_NOTEXCACHE) {
+			/* no need to load cache */
+			return true;
+		}
+
 		const LoadResult res = loadHiResTextures(dir_path.c_str(), replace);
 		if (res == resError) {
 			if (_callback) (*_callback)(wst("Texture pack load failed. Clear hiresolution texture cache.\n"));
@@ -160,6 +166,17 @@ bool TxHiResCache::load(boolean replace) /* 0 : reload, 1 : replace partial */
 		return res == resOk;
 	}
 	return false;
+}
+
+bool TxHiResCache::reload()
+{
+	/* use reload function if supported */
+	if (TxCache::useReload()) {
+		return TxCache::reload();
+	}
+
+	/* else use old reload method */
+	return load(0) && !TxCache::empty();
 }
 
 TxHiResCache::LoadResult TxHiResCache::loadHiResTextures(const wchar_t * dir_path, boolean replace)
@@ -193,8 +210,8 @@ TxHiResCache::LoadResult TxHiResCache::loadHiResTextures(const wchar_t * dir_pat
 	tx_wstring texturefilename;
 
 	do {
-
-		if (KBHIT(0x1B)) {
+		osal_keys_update_state();
+		if (osal_is_key_pressed(KEY_Escape, 0x0001)) {
 			_abortLoad = true;
 			if (_callback) (*_callback)(wst("Aborted loading hiresolution texture!\n"));
 			INFO(80, wst("Error: aborted loading hiresolution texture!\n"));
@@ -210,6 +227,7 @@ TxHiResCache::LoadResult TxHiResCache::loadHiResTextures(const wchar_t * dir_pat
 		if (wccmp(foundfilename, wst(".")))
 			// These files we don't need
 			continue;
+
 		texturefilename.assign(dir_path);
 		texturefilename += OSAL_DIR_SEPARATOR_STR;
 		texturefilename += foundfilename;
@@ -229,103 +247,27 @@ TxHiResCache::LoadResult TxHiResCache::loadHiResTextures(const wchar_t * dir_pat
 		int width = 0, height = 0;
 		ColorFormat format = graphics::internalcolorFormat::NOCOLOR;
 		uint8 *tex = nullptr;
-		int tmpwidth = 0, tmpheight = 0;
-		ColorFormat tmpformat = graphics::internalcolorFormat::NOCOLOR;
-		uint8 *tmptex = nullptr;
-		ColorFormat destformat = graphics::internalcolorFormat::NOCOLOR;
 
 		/* Rice hi-res textures: begin
 		 */
-		uint32 chksum = 0, fmt = 0, siz = 0, palchksum = 0;
-		bool hasWildcard = false;
-		char *pfname = nullptr, fname[MAX_PATH];
-		std::string ident;
+		uint32 chksum = 0, fmt = 0, siz = 0, palchksum = 0, length = 0;
+		char fname[MAX_PATH];
+		char ident[MAX_PATH];
 		FILE *fp = nullptr;
 
-		wcstombs(fname, _ident.c_str(), MAX_PATH);
-		/* XXX case sensitivity fiasco!
-		 * files must use _a, _rgb, _all, _allciByRGBA, _ciByRGBA, _ci
-		 * and file extensions must be in lower case letters! */
+		wcstombs(ident, _ident.c_str(), MAX_PATH);
+		wcstombs(fname, foundfilename, MAX_PATH);
+
 #ifdef OS_WINDOWS
-		{
-			unsigned int i;
-			for (i = 0; i < strlen(fname); i++) fname[i] = tolower(fname[i]);
-		}
+		/* lowercase on windows */
+		for (uint32 i = 0; i < strlen(ident); i++) ident[i] = tolower(ident[i]);
+		for (uint32 i = 0; i < strlen(fname); i++) fname[i] = tolower(fname[i]);
 #endif
-		ident.assign(fname);
 
 		/* read in Rice's file naming convention */
-#define CRCFMTSIZ_LEN 13
-#define CRCWILDCARD_LEN 15
-#define PALCRC_LEN 9
-		wcstombs(fname, foundfilename, MAX_PATH);
-		/* XXX case sensitivity fiasco!
-		 * files must use _a, _rgb, _all, _allciByRGBA, _ciByRGBA, _ci
-		 * and file extensions must be in lower case letters! */
-#ifdef OS_WINDOWS
-		{
-			unsigned int i;
-			for (i = 0; i < strlen(fname); i++) fname[i] = tolower(fname[i]);
-		}
-#endif
-		pfname = fname + strlen(fname) - 4;
-		if (!(pfname == strstr(fname, ".png") ||
-			pfname == strstr(fname, ".bmp") ||
-			pfname == strstr(fname, ".dds"))) {
-#if !DEBUG
-			INFO(80, wst("-----\n"));
-			INFO(80, wst("path: %ls\n"), dir_path.string().c_str());
-			INFO(80, wst("file: %ls\n"), it->path().leaf().c_str());
-#endif
-			INFO(80, wst("Error: not png or bmp or dds!\n"));
-			continue;
-		}
-		pfname = strstr(fname, ident.c_str());
-		if (pfname != fname) pfname = 0;
-		if (pfname) {
-			uint32_t length = 0;
-			const char* strName = pfname + ident.size();
-
-			/* wildcard support */
-			if (strchr(strName, '$')) {
-				if (sscanf(strName, "#%08X#%01X#%01X#$", &chksum, &fmt, &siz) == 3) {
-					length = CRCWILDCARD_LEN;
-				} else if (sscanf(strName, "#$#%01X#%01X#%08X", &fmt, &siz, &palchksum) == 3) {
-					length = CRCWILDCARD_LEN;
-				}
-
-				hasWildcard = (length != 0);
-			} else {
-				if (sscanf(strName, "#%08X#%01X#%01X#%08X", &chksum, &fmt, &siz, &palchksum) == 4) {
-					length = CRCFMTSIZ_LEN + PALCRC_LEN;
-				} else if (sscanf(strName, "#%08X#%01X#%01X", &chksum, &fmt, &siz) == 3) {
-					length = CRCFMTSIZ_LEN;
-				}
-			}
-
-			if (length) {
-				pfname += (ident.size() + length);
-			} else {
-				pfname = 0;
-			}
-		}
-
-		if (!pfname) {
-#if !DEBUG
-			INFO(80, wst("-----\n"));
-			INFO(80, wst("path: %ls\n", dir_path));
-			INFO(80, wst("file: %ls\n", foundfilename));
-#endif
-			INFO(80, wst("Error: not Rice texture naming convention!\n"));
-			continue;
-		}
-		if (!chksum && !hasWildcard) {
-#if !DEBUG
-			INFO(80, wst("-----\n"));
-			INFO(80, wst("path: %ls\n"), dir_path.string().c_str());
-			INFO(80, wst("file: %ls\n"), it->path().leaf().c_str());
-#endif
-			INFO(80, wst("Error: crc32 = 0!\n"));
+		length = checkFileName(ident, fname, &chksum, &palchksum, &fmt, &siz);
+		if (length == 0) {
+			/* invalid file name, skip it */
 			continue;
 		}
 
@@ -339,187 +281,383 @@ TxHiResCache::LoadResult TxHiResCache::loadHiResTextures(const wchar_t * dir_pat
 			if (isCached(chksum64)) {
 #if !DEBUG
 				INFO(80, wst("-----\n"));
-				INFO(80, wst("path: %ls\n"), dir_path.string().c_str());
-				INFO(80, wst("file: %ls\n"), it->path().leaf().c_str());
+				INFO(80, wst("file: %s\n"), fname);
 #endif
 				INFO(80, wst("Error: already cached! duplicate texture!\n"));
 				continue;
 			}
 		}
 
+		tex = loadFileInfoTex(fname, siz, &width, &height, fmt, &format);
+		if (tex == nullptr) {
+			/* failed to load file into tex data, skip it */
+			continue;
+		}
+
 		DBG_INFO(80, wst("rom: %ls chksum:%08X %08X fmt:%x size:%x\n"), _ident.c_str(), chksum, palchksum, fmt, siz);
 
-		/* Deal with the wackiness some texture packs utilize Rice format.
-		 * Read in the following order: _a.* + _rgb.*, _all.png _ciByRGBA.png,
-		 * _allciByRGBA.png, and _ci.bmp. PNG are prefered over BMP.
-		 *
-		 * For some reason there are texture packs that include them all. Some
-		 * even have RGB textures named as _all.* and ARGB textures named as
-		 * _rgb.*... Someone pleeeez write a GOOD guideline for the texture
-		 * designers!!!
-		 *
-		 * We allow hires textures to have higher bpp than the N64 originals.
-		 */
-		/* N64 formats
-		 * Format: 0 - RGBA, 1 - YUV, 2 - CI, 3 - IA, 4 - I
-		 * Size:   0 - 4bit, 1 - 8bit, 2 - 16bit, 3 - 32 bit
-		 */
+		/* load it into hires texture cache. */
+		uint64 chksum64 = (uint64)palchksum;
+		if (chksum) {
+			chksum64 <<= 32;
+			chksum64 |= (uint64)chksum;
+		}
 
-		/*
-		 * read in _rgb.* and _a.*
-		 */
-		if (pfname == strstr(fname, "_rgb.") || pfname == strstr(fname, "_a.")) {
-			strcpy(pfname, "_rgb.png");
+		GHQTexInfo tmpInfo;
+		tmpInfo.data = tex;
+		tmpInfo.width = width;
+		tmpInfo.height = height;
+		tmpInfo.is_hires_tex = 1;
+		setTextureFormat(format, &tmpInfo);
+
+		/* remove redundant in cache */
+		if (replace && TxCache::del(chksum64)) {
+			DBG_INFO(80, wst("removed duplicate old cache.\n"));
+		}
+
+		/* add to cache */
+		const boolean added = TxCache::add(chksum64, &tmpInfo);
+		free(tex);
+		if (added) {
+			/* Callback to display hires texture info.
+			 * Gonetz <gonetz(at)ngs.ru> */
+			if (_callback) {
+				wchar_t tmpbuf[MAX_PATH];
+				mbstowcs(tmpbuf, fname, MAX_PATH);
+				(*_callback)(wst("[%d] total mem:%.2fmb - %ls\n"), int(size()), (totalSize() / 1024) / 1024.0f, tmpbuf);
+			}
+			DBG_INFO(80, wst("texture loaded!\n"));
+		}
+		else {
+			result = resError;
+			break;
+		}
+
+	} while (foundfilename != nullptr);
+
+	osal_search_dir_close(dir);
+
+	CHDIR(curpath);
+
+	return result;
+}
+
+uint32_t TxHiResCache::checkFileName(char* ident, char* filename,
+	uint32_t* pChksum, uint32_t* pPalchksum,
+	uint32_t* pFmt, uint32_t* pSiz)
+{
+#define CRCFMTSIZ_LEN 13
+#define CRCWILDCARD_LEN 15
+#define PALCRC_LEN 9
+
+	const char* strName;
+	const char* pfilename;
+	uint32_t length = 0, filename_type = 0;
+	bool hasWildcard = false;
+	const char supported_ends[][20] = {
+		"all.png",
+		"all.dds",
+#ifdef OS_WINDOWS
+		"allcibyrgba.png",
+		"allcibyrgba.dds",
+		"cibyrgba.png",
+		"cibyrgba.dds",
+#else
+		"allciByRGBA.png",
+		"allciByRGBA.dds",
+		"ciByRGBA.png",
+		"ciByRGBA.dds",
+#endif
+		"rgb.png",
+		"rgb.bmp",
+		"a.png",
+		"a.bmp"
+	};
+
+	pfilename = filename + strlen(filename) - 4;
+	
+	if (strcmp(pfilename, ".png") &&
+		strcmp(pfilename, ".bmp") &&
+		strcmp(pfilename, ".dds")) {
+#if !DEBUG
+		INFO(80, wst("-----\n"));
+		INFO(80, wst("file: %s\n"), filename);
+#endif
+		INFO(80, wst("Error: not png or bmp or dds!\n"));
+		return 0;
+	}
+	
+	/* make sure filename contains ident */
+	pfilename = strstr(filename, ident);
+	if (!pfilename) {
+		return 0;
+	}
+
+	strName = pfilename + strlen(ident);
+
+	/* wildcard support */
+	if (strchr(strName, '$')) {
+		if (sscanf(strName, "#%08X#%01X#%01X#$", pChksum, pFmt, pSiz) == 3) {
+			filename_type = 1;
+			length = CRCWILDCARD_LEN;
+		} else if (sscanf(strName, "#$#%01X#%01X#%08X", pFmt, pSiz, pPalchksum) == 3) {
+			filename_type = 2;
+			length = CRCWILDCARD_LEN;
+		}
+
+		hasWildcard = (length != 0);
+	} else {
+		if (sscanf(strName, "#%08X#%01X#%01X#%08X", pChksum, pFmt, pSiz, pPalchksum) == 4) {
+			filename_type = 3;
+			length = CRCFMTSIZ_LEN + PALCRC_LEN;
+		} else if (sscanf(strName, "#%08X#%01X#%01X", pChksum, pFmt, pSiz) == 3) {
+			filename_type = 4;
+			length = CRCFMTSIZ_LEN;
+		}
+	}
+
+	/* try to re-create string and match it */
+	bool supportedFilename = false;
+	char test_filename[MAX_PATH];
+	for (int i = 0; length && i < (sizeof(supported_ends) / sizeof(supported_ends[0])); i++) {
+		char* end = (char*)supported_ends[i];
+
+		switch (filename_type)
+		{
+			default:
+			case 1:
+				sprintf(test_filename, "%s#%08X#%01X#%01X#$_%s", ident, *pChksum, *pFmt, *pSiz, end);
+				break;
+			case 2:
+				sprintf(test_filename, "%s#$#%01X#%01X#%08X_%s", ident, *pFmt, *pSiz, *pPalchksum, end);
+				break;
+			case 3:
+				sprintf(test_filename, "%s#%08X#%01X#%01X#%08X_%s", ident, *pChksum, *pFmt, *pSiz, *pPalchksum, end);
+				break;
+			case 4:
+				sprintf(test_filename, "%s#%08X#%01X#%01X_%s", ident, *pChksum, *pFmt, *pSiz, end);
+				break;
+		}
+
+#ifdef OS_WINDOWS
+		/* lowercase on windows */
+		for (uint32 x = 0; x < strlen(test_filename); x++) test_filename[x] = tolower(test_filename[x]);
+#endif
+
+		/* when it matches, break */
+		if (strcmp(test_filename, filename) == 0) {
+			supportedFilename = true;
+			break;
+		}
+	}
+
+	if (!supportedFilename || !length) {
+#if !DEBUG
+		INFO(80, wst("-----\n"));
+		INFO(80, wst("file: %s\n", filename));
+#endif
+		INFO(80, wst("Error: not Rice texture naming convention!\n"));
+		return 0;
+	}
+
+	if (!*pChksum && !hasWildcard) {
+#if !DEBUG
+		INFO(80, wst("-----\n"));
+		INFO(80, wst("file: %s\n"), filename);
+#endif
+		INFO(80, wst("Error: crc32 = 0!\n"));
+		return 0;
+	}
+
+	return length;
+}
+
+uint8_t* TxHiResCache::loadFileInfoTex(char* fname, 
+	int siz, int* pWidth, int* pHeight, 
+	uint32_t fmt,
+	ColorFormat* pFormat)
+{
+	/* Deal with the wackiness some texture packs utilize Rice format.
+	 * Read in the following order: _a.* + _rgb.*, _all.png _ciByRGBA.png,
+	 * _allciByRGBA.png, and _ci.bmp. PNG are prefered over BMP.
+	 *
+	 * For some reason there are texture packs that include them all. Some
+	 * even have RGB textures named as _all.* and ARGB textures named as
+	 * _rgb.*... Someone pleeeez write a GOOD guideline for the texture
+	 * designers!!!
+	 *
+	 * We allow hires textures to have higher bpp than the N64 originals.
+	 */
+	/* N64 formats
+	 * Format: 0 - RGBA, 1 - YUV, 2 - CI, 3 - IA, 4 - I
+	 * Size:   0 - 4bit, 1 - 8bit, 2 - 16bit, 3 - 32 bit
+	 */
+
+	uint8_t* tex = nullptr;
+	uint8_t* tmptex = nullptr;
+	int tmpwidth = 0, tmpheight = 0;
+	int width = 0, height = 0;
+	FILE* fp = nullptr;
+
+	ColorFormat tmpformat = graphics::internalcolorFormat::NOCOLOR;
+	ColorFormat destformat = graphics::internalcolorFormat::NOCOLOR;
+	ColorFormat format = graphics::internalcolorFormat::NOCOLOR;
+
+	char* pfname;
+
+	/*
+	 * read in _rgb.* and _a.*
+	 */
+	if ((pfname = strstr(fname, "_rgb.")) ||
+		(pfname = strstr(fname, "_a."))) {
+		strcpy(pfname, "_rgb.png");
+		if (!osal_path_existsA(fname)) {
+			strcpy(pfname, "_rgb.bmp");
 			if (!osal_path_existsA(fname)) {
-				strcpy(pfname, "_rgb.bmp");
-				if (!osal_path_existsA(fname)) {
 #if !DEBUG
-					INFO(80, wst("-----\n"));
-					INFO(80, wst("path: %ls\n"), dir_path.string().c_str());
-					INFO(80, wst("file: %ls\n"), it->path().leaf().c_str());
+				INFO(80, wst("-----\n"));
+				INFO(80, wst("file: %s\n"), fname);
 #endif
-					INFO(80, wst("Error: missing _rgb.*! _a.* must be paired with _rgb.*!\n"));
-					continue;
-				}
+				INFO(80, wst("Error: missing _rgb.*! _a.* must be paired with _rgb.*!\n"));
+				return nullptr;;
 			}
-			/* _a.png */
-			strcpy(pfname, "_a.png");
+		}
+		/* _a.png */
+		strcpy(pfname, "_a.png");
+		if ((fp = fopen(fname, "rb")) != nullptr) {
+			tmptex = _txImage->readPNG(fp, &tmpwidth, &tmpheight, &tmpformat);
+			fclose(fp);
+		}
+		if (!tmptex) {
+			/* _a.bmp */
+			strcpy(pfname, "_a.bmp");
 			if ((fp = fopen(fname, "rb")) != nullptr) {
-				tmptex = _txImage->readPNG(fp, &tmpwidth, &tmpheight, &tmpformat);
+				tmptex = _txImage->readBMP(fp, &tmpwidth, &tmpheight, &tmpformat);
 				fclose(fp);
 			}
-			if (!tmptex) {
-				/* _a.bmp */
-				strcpy(pfname, "_a.bmp");
-				if ((fp = fopen(fname, "rb")) != nullptr) {
-					tmptex = _txImage->readBMP(fp, &tmpwidth, &tmpheight, &tmpformat);
-					fclose(fp);
-				}
-			}
-			/* _rgb.png */
-			strcpy(pfname, "_rgb.png");
+		}
+		/* _rgb.png */
+		strcpy(pfname, "_rgb.png");
+		if ((fp = fopen(fname, "rb")) != nullptr) {
+			tex = _txImage->readPNG(fp, &width, &height, &format);
+			fclose(fp);
+		}
+		if (!tex) {
+			/* _rgb.bmp */
+			strcpy(pfname, "_rgb.bmp");
 			if ((fp = fopen(fname, "rb")) != nullptr) {
-				tex = _txImage->readPNG(fp, &width, &height, &format);
+				tex = _txImage->readBMP(fp, &width, &height, &format);
 				fclose(fp);
 			}
-			if (!tex) {
-				/* _rgb.bmp */
-				strcpy(pfname, "_rgb.bmp");
-				if ((fp = fopen(fname, "rb")) != nullptr) {
-					tex = _txImage->readBMP(fp, &width, &height, &format);
-					fclose(fp);
+		}
+		if (tmptex) {
+			/* check if _rgb.* and _a.* have matching size and format. */
+			if (!tex || width != tmpwidth || height != tmpheight ||
+				format != graphics::internalcolorFormat::RGBA8 || tmpformat != graphics::internalcolorFormat::RGBA8) {
+#if !DEBUG
+				INFO(80, wst("-----\n"));
+				INFO(80, wst("file: %s\n"), fname);
+#endif
+				if (!tex) {
+					INFO(80, wst("Error: missing _rgb.*!\n"));
 				}
+				else if (width != tmpwidth || height != tmpheight) {
+					INFO(80, wst("Error: _rgb.* and _a.* have mismatched width or height!\n"));
+				}
+				else if (format != graphics::internalcolorFormat::RGBA8 || tmpformat != graphics::internalcolorFormat::RGBA8) {
+					INFO(80, wst("Error: _rgb.* or _a.* not in 32bit color!\n"));
+				}
+				if (tex) free(tex);
+				free(tmptex);
+				tex = nullptr;
+				tmptex = nullptr;
+				return nullptr;
 			}
+		}
+		/* make adjustments */
+		if (tex) {
 			if (tmptex) {
-				/* check if _rgb.* and _a.* have matching size and format. */
-				if (!tex || width != tmpwidth || height != tmpheight ||
-					format != graphics::internalcolorFormat::RGBA8 || tmpformat != graphics::internalcolorFormat::RGBA8) {
-#if !DEBUG
-					INFO(80, wst("-----\n"));
-					INFO(80, wst("path: %ls\n"), dir_path.string().c_str());
-					INFO(80, wst("file: %ls\n"), it->path().leaf().c_str());
-#endif
-					if (!tex) {
-						INFO(80, wst("Error: missing _rgb.*!\n"));
-					}
-					else if (width != tmpwidth || height != tmpheight) {
-						INFO(80, wst("Error: _rgb.* and _a.* have mismatched width or height!\n"));
-					}
-					else if (format != graphics::internalcolorFormat::RGBA8 || tmpformat != graphics::internalcolorFormat::RGBA8) {
-						INFO(80, wst("Error: _rgb.* or _a.* not in 32bit color!\n"));
-					}
-					if (tex) free(tex);
-					free(tmptex);
-					tex = nullptr;
-					tmptex = nullptr;
-					continue;
-				}
-			}
-			/* make adjustments */
-			if (tex) {
-				if (tmptex) {
-					/* merge (A)RGB and A comp */
-					DBG_INFO(80, wst("merge (A)RGB and A comp\n"));
-					int i;
-					for (i = 0; i < height * width; i++) {
+				/* merge (A)RGB and A comp */
+				DBG_INFO(80, wst("merge (A)RGB and A comp\n"));
+				int i;
+				for (i = 0; i < height * width; i++) {
 #if 1
-						/* use R comp for alpha. this is what Rice uses. sigh... */
-						((uint32*)tex)[i] &= 0x00ffffff;
-						((uint32*)tex)[i] |= ((((uint32*)tmptex)[i] & 0xff) << 24);
+					/* use R comp for alpha. this is what Rice uses. sigh... */
+					((uint32*)tex)[i] &= 0x00ffffff;
+					((uint32*)tex)[i] |= ((((uint32*)tmptex)[i] & 0xff) << 24);
 #endif
 #if 0
-						/* use libpng style grayscale conversion */
-						uint32 texel = ((uint32*)tmptex)[i];
-						uint32 acomp = (((texel >> 16) & 0xff) * 6969 +
-							((texel >>  8) & 0xff) * 23434 +
-							((texel      ) & 0xff) * 2365) / 32768;
-						((uint32*)tex)[i] = (acomp << 24) | (((uint32*)tex)[i] & 0x00ffffff);
+					/* use libpng style grayscale conversion */
+					uint32 texel = ((uint32*)tmptex)[i];
+					uint32 acomp = (((texel >> 16) & 0xff) * 6969 +
+						((texel >>  8) & 0xff) * 23434 +
+						((texel      ) & 0xff) * 2365) / 32768;
+					((uint32*)tex)[i] = (acomp << 24) | (((uint32*)tex)[i] & 0x00ffffff);
 #endif
 #if 0
-						/* use the standard NTSC gray scale conversion */
-						uint32 texel = ((uint32*)tmptex)[i];
-						uint32 acomp = (((texel >> 16) & 0xff) * 299 +
-							((texel >>  8) & 0xff) * 587 +
-							((texel      ) & 0xff) * 114) / 1000;
-						((uint32*)tex)[i] = (acomp << 24) | (((uint32*)tex)[i] & 0x00ffffff);
+					/* use the standard NTSC gray scale conversion */
+					uint32 texel = ((uint32*)tmptex)[i];
+					uint32 acomp = (((texel >> 16) & 0xff) * 299 +
+						((texel >>  8) & 0xff) * 587 +
+						((texel      ) & 0xff) * 114) / 1000;
+					((uint32*)tex)[i] = (acomp << 24) | (((uint32*)tex)[i] & 0x00ffffff);
 #endif
-					}
-					free(tmptex);
-					tmptex = nullptr;
 				}
-				else {
-					/* clobber A comp. never a question of alpha. only RGB used. */
+				free(tmptex);
+				tmptex = nullptr;
+			}
+			else {
+				/* clobber A comp. never a question of alpha. only RGB used. */
 #if !DEBUG
-					INFO(80, wst("-----\n"));
-					INFO(80, wst("path: %ls\n"), dir_path.string().c_str());
-					INFO(80, wst("file: %ls\n"), it->path().leaf().c_str());
+				INFO(80, wst("-----\n"));
+				INFO(80, wst("file: %ls\n"), fname);
 #endif
-					INFO(80, wst("Warning: missing _a.*! only using _rgb.*. treat as opaque texture.\n"));
-					int i;
-					for (i = 0; i < height * width; i++) {
-						((uint32*)tex)[i] |= 0xff000000;
-					}
+				INFO(80, wst("Warning: missing _a.*! only using _rgb.*. treat as opaque texture.\n"));
+				int i;
+				for (i = 0; i < height * width; i++) {
+					((uint32*)tex)[i] |= 0xff000000;
 				}
 			}
 		}
-		else
-
-			/*
-			 * read in _all.png, _all.dds, _allciByRGBA.png, _allciByRGBA.dds
-			 * _ciByRGBA.png, _ciByRGBA.dds, _ci.bmp
-			 */
-			 if (pfname == strstr(fname, "_all.png") ||
-				 pfname == strstr(fname, "_all.dds") ||
+	}
+	else
+		/*
+		 * read in _all.png, _all.dds, _allciByRGBA.png, _allciByRGBA.dds
+		 * _ciByRGBA.png, _ciByRGBA.dds, _ci.bmp
+		 */
+		if (strstr(fname, "_all.png") ||
+				strstr(fname, "_all.dds") ||
 #ifdef OS_WINDOWS
-				 pfname == strstr(fname, "_allcibyrgba.png") ||
-				 pfname == strstr(fname, "_allcibyrgba.dds") ||
-				 pfname == strstr(fname, "_cibyrgba.png") ||
-				 pfname == strstr(fname, "_cibyrgba.dds") ||
+				strstr(fname, "_allcibyrgba.png") ||
+				strstr(fname, "_allcibyrgba.dds") ||
+				strstr(fname, "_cibyrgba.png") ||
+				strstr(fname, "_cibyrgba.dds") ||
 #else
-				 pfname == strstr(fname, "_allciByRGBA.png") ||
-				 pfname == strstr(fname, "_allciByRGBA.dds") ||
-				 pfname == strstr(fname, "_ciByRGBA.png") ||
-				 pfname == strstr(fname, "_ciByRGBA.dds") ||
+				strstr(fname, "_allciByRGBA.png") ||
+				strstr(fname, "_allciByRGBA.dds") ||
+				strstr(fname, "_ciByRGBA.png") ||
+				strstr(fname, "_ciByRGBA.dds") ||
 #endif
-				 pfname == strstr(fname, "_ci.bmp")) {
-				 if ((fp = fopen(fname, "rb")) != nullptr) {
-					 if (strstr(fname, ".png"))
-						 tex = _txImage->readPNG(fp, &width, &height, &format);
-					 else
-						 tex = _txImage->readBMP(fp, &width, &height, &format);
-					 fclose(fp);
-				 }
-			 }
+				strstr(fname, "_ci.bmp")) {
+
+				if ((fp = fopen(fname, "rb")) != nullptr) {
+					if (strstr(fname, ".png"))
+						tex = _txImage->readPNG(fp, &width, &height, &format);
+					else
+						tex = _txImage->readBMP(fp, &width, &height, &format);
+				 
+					fclose(fp);
+				}
+		 }
 
 		/* if we do not have a texture at this point we are screwed */
 		if (!tex) {
 #if !DEBUG
 			INFO(80, wst("-----\n"));
-			INFO(80, wst("path: %ls\n"), dir_path.string().c_str());
-			INFO(80, wst("file: %ls\n"), it->path().leaf().c_str());
+			INFO(80, wst("file: %s\n"), fname);
 #endif
 			INFO(80, wst("Error: load failed!\n"));
-			continue;
+			return nullptr;
 		}
 		DBG_INFO(80, wst("read in as %d x %d gfmt:%x\n"), tmpwidth, tmpheight, tmpformat);
 
@@ -530,11 +668,10 @@ TxHiResCache::LoadResult TxHiResCache::loadHiResTextures(const wchar_t * dir_pat
 			tex = nullptr;
 #if !DEBUG
 			INFO(80, wst("-----\n"));
-			INFO(80, wst("path: %ls\n"), dir_path.string().c_str());
-			INFO(80, wst("file: %ls\n"), it->path().leaf().c_str());
+			INFO(80, wst("file: %ls\n"), fname);
 #endif
 			INFO(80, wst("Error: not width * height > 4 or 8bit palette color or 32bpp or dxt1 or dxt3 or dxt5!\n"));
-			continue;
+			return nullptr;
 		}
 
 		/* analyze and determine best format to quantize */
@@ -688,7 +825,7 @@ TxHiResCache::LoadResult TxHiResCache::loadHiResTextures(const wchar_t * dir_pat
 					free(tex);
 					tex = nullptr;
 					DBG_INFO(80, wst("Error: minification failed!\n"));
-					continue;
+					return nullptr;
 				}
 			}
 
@@ -703,8 +840,8 @@ TxHiResCache::LoadResult TxHiResCache::loadHiResTextures(const wchar_t * dir_pat
 				free(tex);
 				tex = nullptr;
 				DBG_INFO(80, wst("Error: aspect ratio adjustment failed!\n"));
-				continue;
-				}
+				return nullptr;
+			}
 #endif
 
 			/* quantize */
@@ -713,8 +850,7 @@ TxHiResCache::LoadResult TxHiResCache::loadHiResTextures(const wchar_t * dir_pat
 			if (tmptex == nullptr) {
 				free(tex);
 				tex = nullptr;
-				result = resError;
-				break;
+				return nullptr;
 			}
 			if (destformat == graphics::internalcolorFormat::RGBA8 ||
 				destformat == graphics::internalcolorFormat::RGBA4) {
@@ -734,70 +870,30 @@ TxHiResCache::LoadResult TxHiResCache::loadHiResTextures(const wchar_t * dir_pat
 				free(tmptex);
 			tmptex = nullptr;
 		}
-			}
-
-
-		/* last minute validations */
-		if (!tex || (!chksum && !hasWildcard) || !width || !height || format == graphics::internalcolorFormat::NOCOLOR || width > _maxwidth || height > _maxheight) {
-#if !DEBUG
-			INFO(80, wst("-----\n"));
-			INFO(80, wst("path: %ls\n"), dir_path.string().c_str());
-			INFO(80, wst("file: %ls\n"), it->path().leaf().c_str());
-#endif
-			if (tex) {
-				free(tex);
-				tex = nullptr;
-				INFO(80, wst("Error: bad format or size! %d x %d gfmt:%x\n"), width, height, u32(format));
-			}
-			else {
-				INFO(80, wst("Error: load failed!!\n"));
-			}
-			continue;
-		}
-
-		/* load it into hires texture cache. */
-	{
-		uint64 chksum64 = (uint64)palchksum;
-		if (chksum) {
-			chksum64 <<= 32;
-			chksum64 |= (uint64)chksum;
-		}
-
-		GHQTexInfo tmpInfo;
-		tmpInfo.data = tex;
-		tmpInfo.width = width;
-		tmpInfo.height = height;
-		tmpInfo.is_hires_tex = 1;
-		setTextureFormat(format, &tmpInfo);
-
-		/* remove redundant in cache */
-		if (replace && TxCache::del(chksum64)) {
-			DBG_INFO(80, wst("removed duplicate old cache.\n"));
-		}
-
-		/* add to cache */
-		const boolean added = TxCache::add(chksum64, &tmpInfo);
-		free(tex);
-		if (added) {
-			/* Callback to display hires texture info.
-			 * Gonetz <gonetz(at)ngs.ru> */
-			if (_callback) {
-				wchar_t tmpbuf[MAX_PATH];
-				mbstowcs(tmpbuf, fname, MAX_PATH);
-				(*_callback)(wst("[%d] total mem:%.2fmb - %ls\n"), int(size()), (totalSize() / 1024) / 1024.0f, tmpbuf);
-			}
-			DBG_INFO(80, wst("texture loaded!\n"));
-		}
-		else {
-			result = resError;
-			break;
-		}
 	}
 
-	} while (foundfilename != nullptr);
-	osal_search_dir_close(dir);
 
-	CHDIR(curpath);
+	/* last minute validations */
+	if (!tex || !width || !height || format == graphics::internalcolorFormat::NOCOLOR || width > _maxwidth || height > _maxheight) {
+#if !DEBUG
+		INFO(80, wst("-----\n"));
+		INFO(80, wst("file: %s\n"), fname);
+#endif
+		if (tex) {
+			free(tex);
+			tex = nullptr;
+			INFO(80, wst("Error: bad format or size! %d x %d gfmt:%x\n"), width, height, u32(format));
+		}
+		else {
+			INFO(80, wst("Error: load failed!!\n"));
+		}
+		return nullptr;
+	}
 
-	return result;
+	*pWidth = width;
+	*pHeight = height;
+	*pFormat = format;
+
+	return tex;
 }
+

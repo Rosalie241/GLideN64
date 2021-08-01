@@ -65,10 +65,15 @@ public:
 			   int options,
 			   const wchar_t *cachePath,
 			   const wchar_t *texPackPath,
+         const wchar_t *fullTexPath,
 			   const wchar_t *ident,
 			   dispInfoFuncExt callback);
   bool load(boolean replace);
+  bool reload();
   void dump();
+
+  uint32_t checkFileName(char* ident, char* fname, uint32_t* pChksum, uint32_t* pPalchksum, uint32_t* pFmt, uint32_t* pSiz);
+  uint8_t* loadFileInfoTex(char* fname, int siz, int* pWidth, int* pHeight, uint32_t fmt, ColorFormat* pFormat);
 };
 
 #endif /* __TXHIRESCACHE_H__ */
