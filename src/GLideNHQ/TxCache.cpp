@@ -887,7 +887,7 @@ public:
 	void setOptions(uint32 options) override { _options = options; }
 
 private:
-	typedef struct fileIndexEntry
+	typedef struct
 	{
 		char fname[MAX_PATH];
 		tx_wstring directory;
@@ -895,8 +895,15 @@ private:
 		uint32 fmt;
 	} fileIndexEntry_t;
 
+	typedef struct 
+	{
+		time_t time;
+		GHQTexInfo info;
+	} cachedTexture_t;
+
 	bool _createFileIndex(bool update);
 	bool _createFileIndexInDir(tx_wstring directory, bool update);
+	bool _removeOldestTexture(time_t time);
 
 	uint32 _options;
 	tx_wstring _fullTexPath;
@@ -905,7 +912,8 @@ private:
 	dispInfoFuncExt _callback;
 	TxHiResCache *_txHiresCache;
 	std::map<uint64, fileIndexEntry_t> _filesIndex;
-	std::map<uint64, GHQTexInfo> _loadedTex;
+	std::map<uint64, cachedTexture_t> _loadedTex;
+	uint64 _totalSize;
 };
 
 TxNoCache::TxNoCache(uint32 options, const wchar_t *fullTexPath, const wchar_t *ident, TxHiResCache* txHiResCache, dispInfoFuncExt callback)
@@ -914,6 +922,7 @@ TxNoCache::TxNoCache(uint32 options, const wchar_t *fullTexPath, const wchar_t *
 	, _txHiresCache(txHiResCache)
 	, _ident(ident)
 	, _callback(callback)
+	, _totalSize(0)
 {
 	/* store this for _createFileIndexInDir */
 	wcstombs(_identc, _ident.c_str(), MAX_PATH);
@@ -952,12 +961,14 @@ bool TxNoCache::get(Checksum checksum, GHQTexInfo *info)
 	}
 
 	entry = indexEntry->second;
+	time_t currentTime = time(NULL);
 
 	/* make sure to not load the same texture twice */
 	auto loadedTexMap = _loadedTex.find(checksum);
 	if (loadedTexMap != _loadedTex.end()) {
 		DBG_INFO(80, wst("TxNoCache::get: cached chksum:%08X %08X found\n"), chksum, palchksum);
-		*info = loadedTexMap->second;
+		loadedTexMap->second.time = currentTime;
+		*info = loadedTexMap->second.info;
 		return true;
 	}
 
@@ -1000,8 +1011,22 @@ bool TxNoCache::get(Checksum checksum, GHQTexInfo *info)
 	info->is_hires_tex = 1;
 	setTextureFormat(format, info);
 
+	/* make sure we don't go over any memory limits */
+	int texSize = TxUtil::sizeofTx(info->width, info->height, info->format);
+	while ((_totalSize + texSize) >= 500000000) {
+		DBG_INFO(80, wst("_totalSize = %li is too big, clearing up some textures!\n"), _totalSize);
+		_removeOldestTexture(currentTime);
+	}
+
+	/* update totalSize */
+	_totalSize += texSize;
+
+	cachedTexture_t cachedTexture;
+	cachedTexture.time = currentTime;
+	cachedTexture.info = *info;
+
 	/* add to loaded textures */
-	_loadedTex.insert(std::map<uint64, GHQTexInfo>::value_type(checksum, *info));
+	_loadedTex.insert(std::map<uint64, cachedTexture_t>::value_type(checksum, cachedTexture));
 	return true;
 }
 
@@ -1009,12 +1034,15 @@ void TxNoCache::clear()
 {
 	/* free loaded textures */
 	for (auto texMap : _loadedTex) {
-		free(texMap.second.data);
+		free(texMap.second.info.data);
 	}
 
 	/* clear all lists */
 	_loadedTex.clear();
 	_filesIndex.clear();
+
+	/* reset size */
+	_totalSize = 0;
 }
 
 bool TxNoCache::reload()
@@ -1121,6 +1149,43 @@ bool TxNoCache::_createFileIndexInDir(tx_wstring directory, bool update)
 	osal_search_dir_close(dir);
 
 	return result;
+}
+
+bool TxNoCache::_removeOldestTexture(time_t time)
+{
+	DBG_INFO(80, wst("_clearOldestTextures\n"));
+
+	uint64 oldestChksum = 0;
+	cachedTexture_t oldestTexture;
+	time_t oldestTime = time;
+
+	/* try to find oldest texture */
+	for (auto loadedTexEntry : _loadedTex) {
+		cachedTexture_t texture = loadedTexEntry.second;
+		if (texture.time < oldestTime) {
+			oldestChksum = loadedTexEntry.first;
+			oldestTexture = texture;
+			oldestTime = texture.time;
+		}
+	}
+
+	/* make sure a texture was found */
+	if (oldestChksum == 0) {
+		return false;
+	}
+
+	DBG_INFO(80, wst("_clearOldestTextures: removing cksum:%08X %08X\n"), oldestChksum & 0xffffffff, oldestChksum >> 32);
+
+	/* free oldest texture and remove from cache */
+	free(oldestTexture.info.data);
+	_loadedTex.erase(oldestChksum);
+
+	/* decrease totalSize */
+	_totalSize -= TxUtil::sizeofTx(oldestTexture.info.width, oldestTexture.info.height, oldestTexture.info.format);
+
+	DBG_INFO(80, wst("_clearOldestTextures: totalSize is now %lli\n"), _totalSize);
+
+	return true;
 }
 
 
