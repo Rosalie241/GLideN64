@@ -4,6 +4,8 @@
 #include "Ext_TxFilter.h"
 #include <osal_files.h>
 
+#define MAX_NUMBER_TEX_IN_MEMORY 200
+
 TxHiResNoCache::TxHiResNoCache(int maxwidth,
 			   int maxheight,
 			   int maxbpp,
@@ -17,7 +19,11 @@ TxHiResNoCache::TxHiResNoCache(int maxwidth,
 	, _fullTexPath(fullTexPath)
 	, _ident(ident)
 	, _callback(callback)
+	, _txMemBuf(new TxMemBuf(MAX_NUMBER_TEX_IN_MEMORY))
+	, _curBuf(0)
 {
+	_txMemBuf->init(maxwidth, maxheight);
+
 	/* store this for _createFileIndexInDir */
 	wcstombs(_identc, _ident.c_str(), MAX_PATH);
 
@@ -34,11 +40,6 @@ TxHiResNoCache::~TxHiResNoCache()
 
 void TxHiResNoCache::_clear()
 {
-	/* free loaded textures */
-	for (auto texMap : _loadedTex) {
-		free(texMap.second.data);
-	}
-
 	/* clear all lists */
 	_loadedTex.clear();
 	_filesIndex.clear();
@@ -54,7 +55,6 @@ bool TxHiResNoCache::get(Checksum checksum, GHQTexInfo *info)
 	if (!checksum) {
 		return false;
 	}
-
 
 #ifdef DEBUG
 	uint32 chksum = checksum._checksum & 0xffffffff;
@@ -96,7 +96,8 @@ bool TxHiResNoCache::get(Checksum checksum, GHQTexInfo *info)
 	/* load texture */
 	int width = 0, height = 0;
 	ColorFormat format;
-	uint8_t* tex = TxHiResLoader::loadFileInfoTex(entry.fname, entry.siz, &width, &height, entry.fmt, &format);
+	uint8_t* buf = _txMemBuf->get(_curBuf++);
+	uint8_t* tex = TxHiResLoader::loadFileInfoTex(buf, entry.fname, entry.siz, &width, &height, entry.fmt, &format);
 
 	/* restore directory */
 	CHDIR(curpath);
@@ -105,6 +106,11 @@ bool TxHiResNoCache::get(Checksum checksum, GHQTexInfo *info)
 		/* failed to load texture, so return false */
 		DBG_INFO(80, wst("TxNoCache::get: failed to load chksum:%08X %08X\n"), chksum, palchksum);
 		return false;
+	}
+
+	/* reset _curBuf when needed */
+	if (_curBuf > MAX_NUMBER_TEX_IN_MEMORY) {
+		_curBuf = 0;
 	}
 
 	DBG_INFO(80, wst("TxNoCache::get: loaded chksum:%08X %08X\n"), chksum, palchksum);

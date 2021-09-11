@@ -57,15 +57,16 @@ public:
 class TxMemBuf
 {
 private:
-	uint8 *_tex[2];
-	uint32 _size[2];
+	uint32 _maxnum;
+	std::vector<uint8 *> _tex;
+	std::vector<uint32> _size;
 	std::vector< std::vector<uint32> > _bufs;
-	TxMemBuf();
 public:
 	static TxMemBuf* getInstance() {
-		static TxMemBuf txMemBuf;
+		static TxMemBuf txMemBuf(2);
 		return &txMemBuf;
 	}
+	TxMemBuf(int maxnum);
 	~TxMemBuf();
 	boolean init(int maxwidth, int maxheight);
 	void shutdown();

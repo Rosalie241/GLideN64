@@ -152,8 +152,9 @@ uint32_t TxHiResLoader::checkFileName(char* ident, char* filename,
 	return length;
 }
 
-uint8_t* TxHiResLoader::loadFileInfoTex(char* fname, 
-	int siz, int* pWidth, int* pHeight, 
+uint8_t* TxHiResLoader::loadFileInfoTex(uint8* buf,
+	char* fname, int siz, 
+	int* pWidth, int* pHeight, 
 	uint32_t fmt,
 	ColorFormat* pFormat)
 {
@@ -521,7 +522,11 @@ uint8_t* TxHiResLoader::loadFileInfoTex(char* fname,
 
 			/* quantize */
 		{
-			tmptex = (uint8 *)malloc(TxUtil::sizeofTx(width, height, destformat));
+			if (buf) {
+				tmptex = buf;
+			} else {
+				tmptex = (uint8 *)malloc(TxUtil::sizeofTx(width, height, destformat));
+			}
 			if (tmptex == nullptr) {
 				free(tex);
 				tex = nullptr;

@@ -261,7 +261,7 @@ TxHiResCache::LoadResult TxHiResCache::_loadHiResTextures(const wchar_t * dir_pa
 			}
 		}
 
-		tex = loadFileInfoTex(fname, siz, &width, &height, fmt, &format);
+		tex = loadFileInfoTex(nullptr, fname, siz, &width, &height, fmt, &format);
 		if (tex == nullptr) {
 			/* failed to load file into tex data, skip it */
 			continue;

@@ -2,6 +2,7 @@
 #define TXHIRESNOCACHE_H
 
 #include "TxHiResLoader.h"
+#include "TxUtil.h"
 
 class TxHiResNoCache : public TxHiResLoader
 {
@@ -24,6 +25,8 @@ class TxHiResNoCache : public TxHiResLoader
 		std::map<uint64, fileIndexEntry_t> _filesIndex;
 		std::map<uint64, GHQTexInfo> _loadedTex;
 		dispInfoFuncExt _callback;
+		std::unique_ptr<TxMemBuf> _txMemBuf;
+		int32_t _curBuf;
 	public:
 		~TxHiResNoCache();
   		TxHiResNoCache(int maxwidth,

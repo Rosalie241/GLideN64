@@ -497,9 +497,12 @@ uint32 TxUtil::getNumberofProcessors()
 /*
  * Memory buffers for texture manipulations
  ******************************************************************************/
-TxMemBuf::TxMemBuf()
+TxMemBuf::TxMemBuf(int maxnum)
 {
-	for (uint32 i = 0; i < 2; i++) {
+	_maxnum = maxnum;
+	_tex.reserve(maxnum);
+	_size.reserve(maxnum);
+	for (uint32 i = 0; i < maxnum; i++) {
 		_tex[i] = nullptr;
 		_size[i] = 0;
 	}
@@ -514,7 +517,7 @@ boolean
 TxMemBuf::init(int maxwidth, int maxheight)
 {
 	try {
-		for (uint32 i = 0; i < 2; i++) {
+		for (uint32 i = 0; i < _maxnum; i++) {
 			if (_tex[i] == nullptr) {
 				_tex[i] = (uint8 *)malloc(maxwidth * maxheight * 4);
 				_size[i] = maxwidth * maxheight * 4;
@@ -542,7 +545,7 @@ TxMemBuf::init(int maxwidth, int maxheight)
 void
 TxMemBuf::shutdown()
 {
-	for (int i = 0; i < 2; i++) {
+	for (int i = 0; i < _maxnum; i++) {
 		if (_tex[i] != nullptr)
 			free(_tex[i]);
 		_tex[i] = nullptr;
@@ -555,21 +558,21 @@ TxMemBuf::shutdown()
 uint8*
 TxMemBuf::get(uint32 num)
 {
-	assert(num < 2);
+	assert(num < _maxnum);
 	return _tex[num];
 }
 
 uint32
 TxMemBuf::size_of(uint32 num)
 {
-	assert(num < 2);
+	assert(num < _maxnum);
 	return _size[num];
 }
 
 uint32*
 TxMemBuf::getThreadBuf(uint32 threadIdx, uint32 num, uint32 size)
 {
-	assert(num < 2);
+	assert(num < _maxnum);
 	const auto idx = threadIdx * 2 + num;
 	auto& buf = _bufs[idx];
 
