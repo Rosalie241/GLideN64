@@ -161,7 +161,9 @@ bool TxHiResNoCache::get(Checksum checksum, GHQTexInfo *info)
 
 bool TxHiResNoCache::reload()
 {
+#ifndef OS_WINDOWS
 	_clear();
+#endif /* OS_WINDOWS */
 	return _createFileIndex(true);
 }
 
@@ -242,6 +244,53 @@ bool TxHiResNoCache::_createFileIndexInDir(tx_wstring directory, bool update)
 			chksum64 <<= 32;
 			chksum64 |= (uint64)chksum;
 		}
+
+#ifdef OS_WINDOWS
+		HANDLE fileHandle;
+		bool retrievedFileTime = false;
+
+		fileHandle = CreateFileW(texturefilename.c_str(),  GENERIC_READ, FILE_SHARE_READ,  NULL,  OPEN_EXISTING,  FILE_ATTRIBUTE_NORMAL, NULL);
+		if (fileHandle != INVALID_HANDLE_VALUE) {
+			retrievedFileTime = GetFileTime(fileHandle, NULL, NULL, &entry.fileTime);
+			CloseHandle(fileHandle);
+		} else {
+			DBG_INFO(80, wst("TxHiResNoCache::_createFileIndexInDir: failed to open file:%ls\n"), chksum, palchksum, texturefilename.c_str());
+		}
+
+		/* 'fast-reload' mechanism */
+		if (retrievedFileTime && update) {
+			/* see if the current file is the same
+			 * as the one in the file index,
+			 * if it is, check the file time,
+			 * and if that doesn't match,
+			 * unload the loaded texture from memory
+			 */
+			auto indexEntry = _filesIndex.find(chksum64);
+			auto loadedTex = _loadedTex.find(chksum64);
+			if (indexEntry != _filesIndex.end() &&
+				strcmp(entry.fname, indexEntry->second.fname) == 0) {
+				/* check if texture is loaded into memory 
+				 * and make sure the file time doesn't match
+				 */
+				if (loadedTex != _loadedTex.end() &&
+					CompareFileTime(&entry.fileTime, &indexEntry->second.fileTime) != 0) {
+					DBG_INFO(80, wst("TxHiResNoCache::_createFileIndexInDir: update found cksum:%08X %08X file:%ls\n"), chksum, palchksum, texturefilename.c_str());
+
+					/* free texture from memory */
+					free(loadedTex->second.info.data);
+					_loadedTex.erase(loadedTex);
+
+					/* update the file index fileTime */
+					indexEntry->second.fileTime = entry.fileTime;
+				}
+
+				/* we already have a file index entry,
+				 * so don't add it to the file index again
+				 */
+				continue;
+			}
+		}
+#endif /* OS_WINDOWS */
 
 		/* try to add entry to file index */
 		ret = _filesIndex.insert(std::map<uint64, fileIndexEntry_t>::value_type(chksum64, entry)).second;

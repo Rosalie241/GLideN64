@@ -19,6 +19,9 @@ class TxHiResNoCache : public TxHiResLoader
 			tx_wstring directory;
 			uint32 siz;
 			uint32 fmt;
+#ifdef OS_WINDOWS
+			FILETIME fileTime;
+#endif /* OS_WINDOWS */
 		};
 
 		struct loadedTexture_t
