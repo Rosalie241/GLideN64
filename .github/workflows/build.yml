@@ -204,6 +204,8 @@ jobs:
     concurrency: ci_push_release
     steps:
       - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
       - name: Download Artifacts
         uses: actions/download-artifact@v2
         with:
