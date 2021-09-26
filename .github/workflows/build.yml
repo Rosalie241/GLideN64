@@ -49,6 +49,7 @@ jobs:
             build/linux-mupen64plus-qt/*.so
             build/linux-mupen64plus-qt/GLideN64.custom.ini
             build/linux-mupen64plus-qt/*.qm
+
   Windows:
     runs-on: windows-latest
     concurrency: ci_windows
