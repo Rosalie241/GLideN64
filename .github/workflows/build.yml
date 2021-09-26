@@ -51,6 +51,7 @@ jobs:
             build/linux-mupen64plus-qt/*.qm
   Windows:
     runs-on: windows-latest
+    concurrency: ci_windows
     env:
       QTDIR_x86: C:\Static_Qt_x86
       QTDIR_x64: C:\Static_Qt_x64
