@@ -51,6 +51,7 @@ void Config::resetToDefaults()
 	generalEmulation.enableShadersStorage = 1;
 	generalEmulation.enableLegacyBlending = 0;
 	generalEmulation.enableHybridFilter = 1;
+	generalEmulation.enableInaccurateTextureCoordinates = 0;
 	generalEmulation.hacks = 0;
 #if defined(OS_ANDROID) || defined(OS_IOS)
 	generalEmulation.enableFragmentDepthWrite = 0;
@@ -103,6 +104,8 @@ void Config::resetToDefaults()
 	textureFilter.txEnhancedTextureFileStorage = 0;
 	textureFilter.txHiresTextureFileStorage = 0;
 	textureFilter.txNoTextureFileStorage = 0;
+
+	textureFilter.txHiresVramLimit = 0u;
 
 	api().GetUserDataPath(textureFilter.txPath);
 	gln_wcscat(textureFilter.txPath, wst("/hires_texture"));

@@ -163,6 +163,8 @@ bool Config_SetDefault()
 	assert(res == M64ERR_SUCCESS);
 	res = ConfigSetDefaultBool(g_configVideoGliden64, "EnableHybridFilter", config.generalEmulation.enableHybridFilter, "Enable hybrid integer scaling filter. Can be slow with low-end GPUs.");
 	assert(res == M64ERR_SUCCESS);
+	res = ConfigSetDefaultBool(g_configVideoGliden64, "EnableInaccurateTextureCoordinates", config.generalEmulation.enableInaccurateTextureCoordinates, "Use fast but less accurate shaders. Can help with low-end GPUs.");
+	assert(res == M64ERR_SUCCESS);
 	res = ConfigSetDefaultBool(g_configVideoGliden64, "EnableFragmentDepthWrite", config.generalEmulation.enableFragmentDepthWrite, "Enable writing of fragment depth. Some mobile GPUs do not support it, thus made optional. Leave enabled.");
 	assert(res == M64ERR_SUCCESS);
 	res = ConfigSetDefaultBool(g_configVideoGliden64, "EnableCustomSettings", config.generalEmulation.enableCustomSettings, "Use GLideN64 per-game settings.");
@@ -256,6 +258,8 @@ bool Config_SetDefault()
 	res = ConfigSetDefaultBool(g_configVideoGliden64, "txHiresTextureFileStorage", config.textureFilter.txHiresTextureFileStorage, "Use file storage instead of memory cache for HD textures.");
 	assert(res == M64ERR_SUCCESS);
 	res = ConfigSetDefaultBool(g_configVideoGliden64, "txNoTextureFileStorage", config.textureFilter.txNoTextureFileStorage, "Use no file storage or cache for HD textures.");
+	assert(res == M64ERR_SUCCESS);
+	res = ConfigSetDefaultInt(g_configVideoGliden64, "txHiresVramLimit", config.textureFilter.txHiresVramLimit, "Limit hi-res textures size in VRAM (in MB, 0 = no limit)");
 	assert(res == M64ERR_SUCCESS);
 	// Convert to multibyte
 	char txPath[PLUGIN_PATH_SIZE * 2];
@@ -469,6 +473,8 @@ void Config_LoadCustomConfig()
 	if (result == M64ERR_SUCCESS) config.textureFilter.txHiresTextureFileStorage = atoi(value);
 	result = ConfigExternalGetParameter(fileHandle, sectionName, "textureFilter\\txNoTextureFileStorage", value, sizeof(value));
 	if (result == M64ERR_SUCCESS) config.textureFilter.txNoTextureFileStorage = atoi(value);
+	result = ConfigExternalGetParameter(fileHandle, sectionName, "textureFilter\\txHiresVramLimit", value, sizeof(value));
+	if (result == M64ERR_SUCCESS) config.textureFilter.txHiresVramLimit = atoi(value);
 	ConfigExternalClose(fileHandle);
 }
 
@@ -508,6 +514,7 @@ void Config_LoadConfig()
 	config.generalEmulation.enableShadersStorage = ConfigGetParamBool(g_configVideoGliden64, "EnableShadersStorage");
 	config.generalEmulation.enableLegacyBlending = ConfigGetParamBool(g_configVideoGliden64, "EnableLegacyBlending");
 	config.generalEmulation.enableHybridFilter = ConfigGetParamBool(g_configVideoGliden64, "EnableHybridFilter");
+	config.generalEmulation.enableInaccurateTextureCoordinates = ConfigGetParamBool(g_configVideoGliden64, "EnableInaccurateTextureCoordinates");
 	config.generalEmulation.enableFragmentDepthWrite = ConfigGetParamBool(g_configVideoGliden64, "EnableFragmentDepthWrite");
 	config.generalEmulation.enableCustomSettings = ConfigGetParamBool(g_configVideoGliden64, "EnableCustomSettings");
 #if defined(OS_ANDROID) || defined(OS_IOS)
@@ -558,6 +565,7 @@ void Config_LoadConfig()
 	config.textureFilter.txEnhancedTextureFileStorage = ConfigGetParamBool(g_configVideoGliden64, "txEnhancedTextureFileStorage");
 	config.textureFilter.txHiresTextureFileStorage = ConfigGetParamBool(g_configVideoGliden64, "txHiresTextureFileStorage");
 	config.textureFilter.txNoTextureFileStorage = ConfigGetParamBool(g_configVideoGliden64, "txNoTextureFileStorage");
+	config.textureFilter.txHiresVramLimit = ConfigGetParamInt(g_configVideoGliden64, "txHiresVramLimit");
 	::mbstowcs(config.textureFilter.txPath, ConfigGetParamString(g_configVideoGliden64, "txPath"), PLUGIN_PATH_SIZE);
 	::mbstowcs(config.textureFilter.txCachePath, ConfigGetParamString(g_configVideoGliden64, "txCachePath"), PLUGIN_PATH_SIZE);
 	::mbstowcs(config.textureFilter.txDumpPath, ConfigGetParamString(g_configVideoGliden64, "txDumpPath"), PLUGIN_PATH_SIZE);

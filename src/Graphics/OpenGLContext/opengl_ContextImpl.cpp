@@ -13,7 +13,8 @@
 #endif
 #include "opengl_ColorBufferReaderWithReadPixels.h"
 #include "opengl_Utils.h"
-#include "GLSL/glsl_CombinerProgramBuilder.h"
+#include "GLSL/glsl_CombinerProgramBuilderAccurate.h"
+#include "GLSL/glsl_CombinerProgramBuilderFast.h"
 #include "GLSL/glsl_SpecialShadersFactory.h"
 #include "GLSL/glsl_ShaderStorage.h"
 
@@ -276,8 +277,13 @@ s32 ContextImpl::getMaxTextureSize() const
 f32 ContextImpl::getMaxAnisotropy() const
 {
 	GLfloat maxInisotropy = 0.0f;
-	glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxInisotropy);
-	return maxInisotropy;
+
+	if (m_glInfo.anisotropic_filtering) {
+		glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxInisotropy);
+		return maxInisotropy;
+	} else {
+		return 0.0f;
+	}
 }
 
 void ContextImpl::bindImageTexture(const graphics::Context::BindImageTextureParameters & _params)
@@ -403,7 +409,13 @@ void ContextImpl::resetCombinerProgramBuilder()
 {
 	if (!isCombinerProgramBuilderObsolete())
 		return;
-	m_combinerProgramBuilder.reset(new glsl::CombinerProgramBuilder(m_glInfo, m_cachedFunctions->getCachedUseProgram()));
+
+	if (config.generalEmulation.enableInaccurateTextureCoordinates) {
+		m_combinerProgramBuilder = std::make_unique<glsl::CombinerProgramBuilderFast>(m_glInfo, m_cachedFunctions->getCachedUseProgram());
+	} else {
+		m_combinerProgramBuilder = std::make_unique<glsl::CombinerProgramBuilderAccurate>(m_glInfo, m_cachedFunctions->getCachedUseProgram());
+	}
+
 	m_specialShadersFactory.reset(new glsl::SpecialShadersFactory(m_glInfo,
 		m_cachedFunctions->getCachedUseProgram(),
 		m_combinerProgramBuilder->getVertexShaderHeader(),
@@ -522,8 +534,6 @@ bool ContextImpl::isSupported(graphics::SpecialFeatures _feature) const
 		return m_glInfo.depthTexture;
 	case graphics::SpecialFeatures::IntegerTextures:
 		return !m_glInfo.isGLES2;
-	case graphics::SpecialFeatures::ClipControl:
-		return !m_glInfo.isGLESX;
 	case graphics::SpecialFeatures::N64DepthWithFbFetchDepth:
 		return m_glInfo.n64DepthWithFbFetch;
 	case graphics::SpecialFeatures::FramebufferFetchColor:
